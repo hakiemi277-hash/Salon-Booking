@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() => runApp(const SalonBookingApp());
 const green = Color(0xFF173F35);
@@ -15,9 +16,48 @@ class SalonBookingApp extends StatelessWidget {
     home: const RegistrationGate());
 }
 class Salon {
-  Salon(this.name, this.location, this.services);
-  String name, location;
+  Salon(this.name, this.location, this.services, {this.whatsappNumber = ''});
+  String name, location, whatsappNumber;
   List<String> services;
+}
+
+String phoneDigits(String value) => value.replaceAll(RegExp(r'[^0-9]'), '');
+
+Future<void> openWhatsApp(BuildContext context, String number, String message) async {
+  final digits = phoneDigits(number);
+  if (digits.length < 7) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lambarka WhatsApp ee goobtan wali lama gelin.')));
+    return;
+  }
+  final uri = Uri.parse('https://wa.me/' + digits + '?text=' + Uri.encodeComponent(message));
+  if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp lama furi karin.')));
+  }
+}
+
+Future<void> callProvider(BuildContext context, String number) async {
+  final digits = phoneDigits(number);
+  if (digits.length < 7) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lambarka telefoonka ee goobtan wali lama gelin.')));
+    return;
+  }
+  await launchUrl(Uri.parse('tel:' + digits), mode: LaunchMode.externalApplication);
+}
+
+Future<void> showBookingContactOptions(BuildContext context, String number, String message) async {
+  await showModalBottomSheet<void>(context: context, builder: (sheetContext) => SafeArea(child: Padding(
+    padding: const EdgeInsets.all(18), child: Column(mainAxisSize: MainAxisSize.min, children: [
+      const Text('Dooro sida aad ula xiriirayso goobta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+      const SizedBox(height: 14),
+      SizedBox(width: double.infinity, child: FilledButton.icon(
+        onPressed: () { Navigator.pop(sheetContext); openWhatsApp(context, number, message); },
+        icon: const Icon(Icons.chat), label: const Text('U DIR WHATSAPP'),
+        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white))),
+      const SizedBox(height: 10),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(
+        onPressed: () { Navigator.pop(sheetContext); callProvider(context, number); },
+        icon: const Icon(Icons.call), label: const Text('CALL NOW'))),
+    ]))));
 }
 const images = <String, List<String>>{
   'Timaha': ['https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500','https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=500','https://images.unsplash.com/photo-1562322140-8baeececf3df?w=500'],
@@ -142,11 +182,17 @@ class _HomePageState extends State<HomePage> {
     if (n == null || n.isEmpty || !mounted) return;
     final l = await ask('Goobta Salon-ka', 'Magaalada / xaafadda');
     if (!mounted) return;
-    setState(() => salons.add(Salon(n, l ?? 'Hargeysa', ['Timaha','Qurxinta wajiga','Ciddiyaha'])));
+    final w = await ask('WhatsApp-ka Salon-ka', 'Tusaale: 25263xxxxxxx');
+    if (!mounted) return;
+    setState(() => salons.add(Salon(n, l ?? 'Hargeysa', ['Timaha','Qurxinta wajiga','Ciddiyaha'], whatsappNumber: w ?? '')));
   }
   Future<void> rename(int i) async {
     final n = await ask('Beddel magaca', salons[i].name);
     if (n != null && n.isNotEmpty) setState(() => salons[i].name = n);
+  }
+  Future<void> editSalonPhone(int i) async {
+    final n = await ask('WhatsApp / telefoonka ' + salons[i].name, salons[i].whatsappNumber.isEmpty ? '252...' : salons[i].whatsappNumber);
+    if (n != null) setState(() => salons[i].whatsappNumber = n);
   }
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -190,6 +236,7 @@ class _HomePageState extends State<HomePage> {
         Icon(isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: green), const SizedBox(width: 8)])),
       if (admin) Wrap(children: [
         TextButton.icon(onPressed: () => rename(i), icon: const Icon(Icons.edit, size: 16), label: const Text('Magac beddel')),
+        TextButton.icon(onPressed: () => editSalonPhone(i), icon: const Icon(Icons.phone, size: 16), label: const Text('Lambarka')),
         TextButton.icon(onPressed: () => setState(() => salons.removeAt(i)), icon: const Icon(Icons.delete_outline, size: 16), label: const Text('Tirtir'))]),
       if (isOpen) ...[const Divider(height: 1), ...s.services.map((service) => serviceTile(i, service)),
         if (admin) TextButton.icon(onPressed: () async { final v = await ask('Ku dar adeeg', 'Magaca adeegga'); if (v != null && v.isNotEmpty) setState(() => s.services.add(v)); },
@@ -206,7 +253,7 @@ class _HomePageState extends State<HomePage> {
           Image.network(pics[j], width: 145, height: 112, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 145, height: 112, color: Colors.black12, child: const Icon(Icons.image))),
           Positioned(left: 5, right: 5, bottom: 5, child: FilledButton(
             style: FilledButton.styleFrom(backgroundColor: green, padding: const EdgeInsets.symmetric(horizontal: 5)),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SalonBookingPage(salonName: salons[salonIndex].name, serviceName: service))),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SalonBookingPage(salonName: salons[salonIndex].name, serviceName: service, whatsappNumber: salons[salonIndex].whatsappNumber))),
             child: const Text('BALLAN QABSO', style: TextStyle(fontSize: 10))))])); })),
       if (admin) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => salons[salonIndex].services.remove(service)),
         child: const Text('Ka saar adeeggan salon-kan', style: TextStyle(color: Colors.red))))]);
@@ -234,43 +281,75 @@ class _HomePageState extends State<HomePage> {
     const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? pink : green, foregroundColor: button == 'KIRAYSO' ? green : Colors.white), onPressed: onTap, child: Text(button)))])));
 }
 
-class ProviderDirectoryPage extends StatelessWidget {
+class ProviderDirectoryPage extends StatefulWidget {
   const ProviderDirectoryPage({super.key, required this.title, required this.isCake});
   final String title;
   final bool isCake;
-
   @override
-  Widget build(BuildContext context) {
-    final providers = List<String>.generate(20, (i) =>
-      isCake ? 'Cake Meherad ' + (i + 1).toString() : 'Decoration Meherad ' + (i + 1).toString());
-    return Scaffold(
-      appBar: AppBar(title: Text(title), backgroundColor: green, foregroundColor: Colors.white),
-      body: ListView(padding: const EdgeInsets.all(14), children: [
-        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(
-          color: const Color(0xFFE5EFE9), borderRadius: BorderRadius.circular(14)),
-          child: Text('Dooro meheradda aad rabto. Waxaa halkan ku jira 20 meheradood oo ' +
-            (isCake ? 'cakes' : 'decoration') + ' ah.', style: const TextStyle(fontWeight: FontWeight.w600))),
-        const SizedBox(height: 12),
-        ...List.generate(providers.length, (i) => Card(
-          margin: const EdgeInsets.only(bottom: 9),
-          child: ListTile(
-            leading: CircleAvatar(backgroundColor: const Color(0xFFE5EFE9),
-              child: Icon(isCake ? Icons.cake_outlined : Icons.celebration_outlined, color: green)),
-            title: Text(providers[i], style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(isCake ? 'Cake design iyo dalabyo' : 'Qurxinta munaasabadaha iyo xafladaha'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
-              isCake ? CakePage(providerName: providers[i]) : DecorationBookingPage(providerName: providers[i]))),
-          ),
-        )),
-      ]),
-    );
+  State<ProviderDirectoryPage> createState() => _ProviderDirectoryPageState();
+}
+class _ProviderDirectoryPageState extends State<ProviderDirectoryPage> {
+  bool adminMode = false;
+  Map<String, String> numbers = {};
+  List<String> get providers => List<String>.generate(20, (i) =>
+    widget.isCake ? 'Cake Meherad ' + (i + 1).toString() : 'Decoration Meherad ' + (i + 1).toString());
+  String get storageKey => widget.isCake ? 'cake_provider_whatsapp' : 'decoration_provider_whatsapp';
+  @override
+  void initState() { super.initState(); _loadNumbers(); }
+  Future<void> _loadNumbers() async {
+    final p = await SharedPreferences.getInstance();
+    final raw = p.getString(storageKey);
+    if (raw != null) {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      if (mounted) setState(() => numbers = decoded.map((k,v) => MapEntry(k, v.toString())));
+    }
   }
+  Future<void> _editNumber(String provider) async {
+    final c = TextEditingController(text: numbers[provider] ?? '');
+    final value = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: Text('Lambarka ' + provider), content: TextField(controller: c, keyboardType: TextInputType.phone,
+        decoration: const InputDecoration(labelText: 'WhatsApp / telefoon', hintText: '25263xxxxxxx')),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Ka noqo')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Kaydi'))]));
+    if (value == null) return;
+    numbers[provider] = value;
+    final p = await SharedPreferences.getInstance();
+    await p.setString(storageKey, jsonEncode(numbers));
+    if (mounted) setState(() {});
+  }
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(widget.title), backgroundColor: green, foregroundColor: Colors.white,
+      actions: [IconButton(tooltip: 'Admin demo: lambarrada goobaha', onPressed: () => setState(() => adminMode = !adminMode),
+        icon: Icon(adminMode ? Icons.admin_panel_settings : Icons.lock_outline))]),
+    body: ListView(padding: const EdgeInsets.all(14), children: [
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(
+        color: const Color(0xFFE5EFE9), borderRadius: BorderRadius.circular(14)),
+        child: Text('Dooro meheradda aad rabto. Waxaa halkan ku jira 20 meheradood oo ' +
+          (widget.isCake ? 'cakes' : 'decoration') + ' ah.', style: const TextStyle(fontWeight: FontWeight.w600))),
+      if (adminMode) const Padding(padding: EdgeInsets.only(top: 8), child: Text('ADMIN DEMO: lambarrada halkan lagu kaydiyo waxay ku jiraan telefoonkan oo keliya.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
+      const SizedBox(height: 12),
+      ...List.generate(providers.length, (i) {
+        final provider = providers[i];
+        return Card(margin: const EdgeInsets.only(bottom: 9), child: ListTile(
+          leading: CircleAvatar(backgroundColor: const Color(0xFFE5EFE9),
+            child: Icon(widget.isCake ? Icons.cake_outlined : Icons.celebration_outlined, color: green)),
+          title: Text(provider, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(widget.isCake ? 'Cake design iyo dalabyo' : 'Qurxinta munaasabadaha iyo xafladaha'),
+          trailing: adminMode ? IconButton(icon: const Icon(Icons.phone), onPressed: () => _editNumber(provider)) : const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: adminMode ? () => _editNumber(provider) : () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+            widget.isCake ? CakePage(providerName: provider, whatsappNumber: numbers[provider] ?? '') :
+              DecorationBookingPage(providerName: provider, whatsappNumber: numbers[provider] ?? ''))),
+        ));
+      }),
+    ]),
+  );
 }
 
 class DecorationBookingPage extends StatefulWidget {
-  const DecorationBookingPage({super.key, required this.providerName});
+  const DecorationBookingPage({super.key, required this.providerName, this.whatsappNumber = ''});
   final String providerName;
+  final String whatsappNumber;
   @override
   State<DecorationBookingPage> createState() => _DecorationBookingPageState();
 }
@@ -307,8 +386,9 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
 
 
 class CakePage extends StatefulWidget {
-  const CakePage({super.key, this.providerName});
+  const CakePage({super.key, this.providerName, this.whatsappNumber = ''});
   final String? providerName;
+  final String whatsappNumber;
   @override
   State<CakePage> createState() => _CakePageState();
 }
@@ -415,14 +495,15 @@ class _CakePageState extends State<CakePage> {
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Codsiga cake-ka waa la kaydiyey'),
-        content: const Text('Dalabkaaga waxaa lagu kaydiyey telefoonkan. Weli si toos ah uguma gudbayo meheradda ama maamulka; server ayaa loo baahan yahay.'),
+        content: const Text('Dalabkaaga waxaa lagu kaydiyey telefoonkan. Hadda dooro WhatsApp ama wicitaan si aad ula xiriirto meheradda.'),
         actions: [
           FilledButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              Navigator.pop(context);
+              showBookingContactOptions(context, widget.whatsappNumber,
+                'BALLAN SALON\\nSalon: ' + widget.salonName + '\\nAdeeg: ' + widget.serviceName + '\\nMagac: ' + name.text.trim() + '\\nTelefoon: ' + phone.text.trim() + '\\nTaariikh: ' + dateText + '\\nWaqti: ' + selectedTime!.format(context) + '\\nFaahfaahin: ' + notes.text.trim());
             },
-            child: const Text('Hagaag'),
+            child: const Text('WHATSAPP / CALL NOW'),
           ),
         ],
       ),
@@ -494,9 +575,10 @@ class _CakePageState extends State<CakePage> {
 
 
 class SalonBookingPage extends StatefulWidget {
-  const SalonBookingPage({super.key, required this.salonName, required this.serviceName});
+  const SalonBookingPage({super.key, required this.salonName, required this.serviceName, this.whatsappNumber = ''});
   final String salonName;
   final String serviceName;
+  final String whatsappNumber;
   @override
   State<SalonBookingPage> createState() => _SalonBookingPageState();
 }
@@ -585,15 +667,15 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Codsiga waa la kaydiyey'),
-        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName +
-          ' waa la diiwaangeliyey. Xaqiijinta meheradda wali server laguma xirin.'),
+        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName + ' waa la kaydiyey. Hadda dooro WhatsApp ama wicitaan.'),
         actions: [
           FilledButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              Navigator.pop(context);
+              showBookingContactOptions(context, widget.whatsappNumber,
+                'DALAB CAKE\\nMeherad: ' + (widget.providerName ?? '') + '\\nMagac: ' + customer.text.trim() + '\\nTelefoon: ' + phone.text.trim() + '\\nCabir: ' + size + '\\nDabaqyo: ' + tiers + '\\nNaqshad: ' + design + '\\nQurxin/qoraal: ' + decoration.text.trim() + '\\nTaariikh: ' + dateText + '\\nWaqti: ' + deliveryTime!.format(context) + '\\nGoobta: ' + place.text.trim());
             },
-            child: const Text('Hagaag'),
+            child: const Text('WHATSAPP / CALL NOW'),
           ),
         ],
       ),
