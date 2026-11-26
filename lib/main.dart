@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const SalonBookingApp());
 const green = Color(0xFF173F35);
@@ -9,8 +10,8 @@ class SalonBookingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false, title: 'SALON BOOKING',
-    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: green), scaffoldBackgroundColor: Colors.white),
-    home: const HomePage());
+    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: green), scaffoldBackgroundColor: pink),
+    home: const RegistrationGate());
 }
 class Salon {
   Salon(this.name, this.location, this.services);
@@ -25,6 +26,98 @@ const images = <String, List<String>>{
   'Makeup': ['https://images.unsplash.com/photo-1526045478516-99145907023c?w=500','https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=500'],
   'Adeegyo kale': ['https://images.unsplash.com/photo-1600948836101-f9ffda59d250?w=500','https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?w=500'],
 };
+
+class RegistrationGate extends StatefulWidget {
+  const RegistrationGate({super.key});
+  @override
+  State<RegistrationGate> createState() => _RegistrationGateState();
+}
+
+class _RegistrationGateState extends State<RegistrationGate> {
+  final nameController = TextEditingController();
+  final phoneController = TextEditingController();
+  bool loading = true;
+  bool saving = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRegistration();
+  }
+
+  Future<void> _loadRegistration() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('customer_name');
+    final phone = prefs.getString('customer_phone');
+    if (!mounted) return;
+    if (name != null && name.trim().isNotEmpty && phone != null && phone.trim().isNotEmpty) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
+      return;
+    }
+    setState(() => loading = false);
+  }
+
+  Future<void> _register() async {
+    final name = nameController.text.trim();
+    final phone = phoneController.text.trim();
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (name.isEmpty || digits.length < 7 || digits.length > 15) {
+      setState(() => error = 'Geli magacaaga iyo number telefoon oo sax ah.');
+      return;
+    }
+    setState(() { saving = true; error = null; });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('customer_name', name);
+    await prefs.setString('customer_phone', phone);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    phoneController.dispose();
+    super.dispose();
+  }
+
+  InputDecoration _decoration(String label, IconData icon) => InputDecoration(
+    labelText: label, prefixIcon: Icon(icon, color: green), filled: true,
+    fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: green.withOpacity(.18))),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: green, width: 1.5)),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Scaffold(backgroundColor: pink, body: Center(child: CircularProgressIndicator(color: green)));
+    return Scaffold(
+      backgroundColor: pink,
+      body: SafeArea(child: Center(child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Container(width: 88, height: 88, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+            child: const Icon(Icons.spa, color: green, size: 48)),
+          const SizedBox(height: 20),
+          const Text('SALON BOOKING', style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: green, letterSpacing: 1)),
+          const SizedBox(height: 8),
+          const Text('Ku soo dhowow. Isdiiwaangeli si aad u gasho.', textAlign: TextAlign.center, style: TextStyle(color: green)),
+          const SizedBox(height: 28),
+          TextField(controller: phoneController, keyboardType: TextInputType.phone, decoration: _decoration('Geli Number kaaga', Icons.phone)),
+          const SizedBox(height: 14),
+          TextField(controller: nameController, textCapitalization: TextCapitalization.words, decoration: _decoration('Geli magacaaga', Icons.person)),
+          if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: const TextStyle(color: Colors.red))),
+          const SizedBox(height: 22),
+          SizedBox(width: double.infinity, height: 52, child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+            onPressed: saving ? null : _register,
+            child: saving ? const CircularProgressIndicator(color: Colors.white) : const Text('REGISTER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+          )),
+        ]),
+      ))),
+    );
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
