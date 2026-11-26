@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
 void main() => runApp(const SalonBookingApp());
-const green = Color(0xFF237A57);
-const gold = Color(0xFFD5A84B);
+const green = Color(0xFF173F35);
+const pink = Color(0xFFF7C8D8);
 
 class SalonBookingApp extends StatelessWidget {
   const SalonBookingApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false, title: 'SALON BOOKING',
-    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: green), scaffoldBackgroundColor: const Color(0xFFF7F7F4)),
+    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: green), scaffoldBackgroundColor: Colors.white),
     home: const HomePage());
 }
 class Salon {
@@ -88,7 +88,7 @@ class _HomePageState extends State<HomePage> {
     final s = salons[i]; final isOpen = opened == i;
     return Card(margin: const EdgeInsets.only(bottom: 11), clipBehavior: Clip.antiAlias, child: Column(children: [
       InkWell(onTap: () => setState(() => opened = isOpen ? -1 : i), child: Row(children: [
-        Container(width: 98, height: 88, color: const Color(0xFFE5E9E5), child: const Icon(Icons.storefront, color: green, size: 42)),
+        Container(width: 98, height: 88, color: pink, child: const Icon(Icons.storefront, color: green, size: 42)),
         Expanded(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 4),
           Row(children: [const Icon(Icons.location_on, size: 15, color: green), Text(s.location)]),
@@ -122,7 +122,7 @@ class _HomePageState extends State<HomePage> {
       onTap: () => Navigator.push(context, MaterialPageRoute(
         builder: (_) => ProviderDirectoryPage(title: title, isCake: isCake))),
       child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
-        Container(width: 58, height: 58, decoration: BoxDecoration(color: const Color(0xFFE5EFE9), borderRadius: BorderRadius.circular(14)),
+        Container(width: 58, height: 58, decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(14)),
           child: Icon(icon, color: green, size: 32)),
         const SizedBox(width: 13),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -137,7 +137,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget actionCard(String title, String button, IconData icon, VoidCallback onTap) => Card(child: Padding(padding: const EdgeInsets.all(13), child: Column(children: [
     Icon(icon, color: green, size: 34), const SizedBox(height: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-    const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? gold : green), onPressed: onTap, child: Text(button)))])));
+    const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? pink : green, foregroundColor: button == 'KIRAYSO' ? green : Colors.white), onPressed: onTap, child: Text(button)))])));
 }
 
 class ProviderDirectoryPage extends StatelessWidget {
