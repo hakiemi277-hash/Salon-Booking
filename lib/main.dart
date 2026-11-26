@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,30 @@ const pink = Color(0xFFF7C8D8);
 
 class SalonApi {
   static const String baseUrl = 'https://salon-booking-api.cabdihakiimjaamac112.workers.dev';
+
+
+  static Future<List<Map<String,dynamic>>> featuredProducts() async {
+    final r=await http.get(Uri.parse('$baseUrl/api/featured-products'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200 || b['ok']!=true) throw Exception('Alaabta lama soo qaadi karin');
+    return (b['products'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<String> adminLogin(String password) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/admin/login'),headers:{'Content-Type':'application/json'},body:jsonEncode({'password':password}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200 || b['ok']!=true) throw Exception(b['error']??'Admin login wuu fashilmay');
+    return b['token'] as String;
+  }
+  static Future<void> addFeaturedProduct(String token,Map<String,dynamic> p) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/admin/featured-products'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(p));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=201 || b['ok']!=true) throw Exception(b['error']??'Kaydintu way fashilantay');
+  }
+  static Future<void> deleteFeaturedProduct(String token,String id) async {
+    final r=await http.delete(Uri.parse('$baseUrl/api/admin/featured-products/$id'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200 || b['ok']!=true) throw Exception(b['error']??'Tirtiriddu way fashilantay');
+  }
 
   static Future<Map<String, dynamic>> createBooking({
     required String category,
@@ -204,6 +229,81 @@ class HomePage extends StatefulWidget {
 }
 class _HomePageState extends State<HomePage> {
   bool admin = false;
+
+  String? adminToken;
+  List<Map<String,dynamic>> featured=[];
+  bool featuredLoading=true;
+  int featuredPage=0;
+  final PageController featuredController=PageController(viewportFraction:.84);
+  Timer? featuredTimer;
+  @override
+  void initState(){
+    super.initState(); loadFeatured();
+    featuredTimer=Timer.periodic(const Duration(seconds:3),(_){
+      if(!mounted||featured.length<2||!featuredController.hasClients)return;
+      featuredPage=(featuredPage+1)%featured.length;
+      featuredController.animateToPage(featuredPage,duration:const Duration(milliseconds:550),curve:Curves.easeInOut);
+    });
+  }
+  @override
+  void dispose(){featuredTimer?.cancel();featuredController.dispose();super.dispose();}
+  Future<void> loadFeatured() async {
+    try{final x=await SalonApi.featuredProducts();if(mounted)setState((){featured=x;featuredLoading=false;});}
+    catch(_){if(mounted)setState(()=>featuredLoading=false);}
+  }
+  Future<void> openAdminTools() async {
+    if(adminToken==null){
+      final c=TextEditingController();
+      final pass=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Admin Login'),
+        content:TextField(controller:c,obscureText:true,decoration:const InputDecoration(labelText:'Admin password')),
+        actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,c.text),child:const Text('Gal'))]));
+      if(pass==null||pass.isEmpty||!mounted)return;
+      try{adminToken=await SalonApi.adminLogin(pass);if(mounted)setState(()=>admin=true);}
+      catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));return;}
+    }
+    await addFeaturedProduct();
+  }
+  Future<void> addFeaturedProduct() async {
+    final title=TextEditingController(),desc=TextEditingController(),price=TextEditingController(),img=TextEditingController();
+    String category='SALON',currency='USD';
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:const Text('Ku dar ALAAB CUSUB'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:title,decoration:const InputDecoration(labelText:'Magaca alaabta')),
+        TextField(controller:desc,maxLines:2,decoration:const InputDecoration(labelText:'Faahfaahin')),
+        TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Qiimaha (ikhtiyaari)')),
+        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SALON','CAKES','DECORATION','KIRAYSO'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??'SALON')),
+        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??'USD')),
+        TextField(controller:img,decoration:const InputDecoration(labelText:'Sawirka HTTPS URL')),
+      ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))])));
+    if(ok!=true||title.text.trim().isEmpty||!mounted)return;
+    try{await SalonApi.addFeaturedProduct(adminToken!,{'title':title.text.trim(),'description':desc.text.trim(),'price':price.text.trim(),'currency':currency,'category':category,'imageUrl':img.text.trim()});await loadFeatured();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Alaabta waa la daabacay.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  Future<void> removeFeatured(Map<String,dynamic> p) async {
+    try{await SalonApi.deleteFeaturedProduct(adminToken!,p['id'].toString());await loadFeatured();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  Widget featuredSection(){
+    if(featuredLoading)return const Padding(padding:EdgeInsets.all(14),child:Center(child:CircularProgressIndicator(color:green)));
+    if(featured.isEmpty&&!admin)return const SizedBox.shrink();
+    return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('ALAAB CUSUB',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),if(admin)TextButton.icon(onPressed:addFeaturedProduct,icon:const Icon(Icons.add),label:const Text('Ku dar'))]),
+      if(featured.isEmpty)const Text('Weli alaab cusub lama soo bandhigin.'),
+      if(featured.isNotEmpty)SizedBox(height:180,child:PageView.builder(controller:featuredController,itemCount:featured.length,onPageChanged:(i)=>featuredPage=i,itemBuilder:(ctx,i){
+        final p=featured[i];return Padding(padding:const EdgeInsets.only(right:10),child:Card(clipBehavior:Clip.antiAlias,child:Row(children:[
+          SizedBox(width:112,height:180,child:(p['image_url']??'').toString().isNotEmpty?Image.network(p['image_url'],fit:BoxFit.cover,errorBuilder:(_,__,___)=>Container(color:pink,child:const Icon(Icons.shopping_bag,color:green,size:36))):Container(color:pink,child:const Icon(Icons.shopping_bag,color:green,size:36))),
+          Expanded(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.center,children:[
+            Text(p['title']??'',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:15)),
+            Text(p['category']??'',style:const TextStyle(color:green,fontSize:11)),
+            if(p['price']!=null)Text('${p['price']} ${p['currency']??'USD'}',style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
+            Text(p['description']??'',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:11)),
+            if(admin)Align(alignment:Alignment.centerRight,child:IconButton(onPressed:()=>removeFeatured(p),icon:const Icon(Icons.delete_outline,color:Colors.red))),
+          ])))
+        ])));
+      })),
+      if(featured.length>1)Center(child:Text('${featuredPage+1} / ${featured.length}',style:const TextStyle(fontSize:11,color:Colors.black54))),
+    ]);
+  }
   int opened = -1;
   int selectedSection = -1;
   final List<Salon> salons = List.generate(20, (i) => Salon('Salon ' + (i + 1).toString(), 'Hargeysa',
@@ -237,7 +337,7 @@ class _HomePageState extends State<HomePage> {
     appBar: AppBar(backgroundColor: green, foregroundColor: Colors.white,
       title: const Text('SALON BOOKING', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
-        IconButton(onPressed: () => setState(() => admin = !admin), icon: Icon(admin ? Icons.admin_panel_settings : Icons.lock_outline), tooltip: 'Admin demo')]),
+        IconButton(onPressed: openAdminTools, icon: const Icon(Icons.admin_panel_settings), tooltip: 'Admin')]),
     body: ListView(padding: const EdgeInsets.all(14), children: [
       Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(colors: [green, Color(0xFF164B39)])),
@@ -245,7 +345,9 @@ class _HomePageState extends State<HomePage> {
           Text('Ku soo dhowow', style: TextStyle(color: Colors.white70)), SizedBox(height: 5),
           Text('Quruxdaada, hal meel.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.bold)),
           SizedBox(height: 8), Text('Dooro qaybta aad u baahan tahay.', style: TextStyle(color: Colors.white))])),
-      const SizedBox(height: 18),
+      const SizedBox(height: 16),
+      featuredSection(),
+      const SizedBox(height: 12),
       GridView.count(
         crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1,
