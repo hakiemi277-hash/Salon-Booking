@@ -1,0 +1,162 @@
+import 'package:flutter/material.dart';
+
+void main() => runApp(const SalonBookingApp());
+const green = Color(0xFF237A57);
+const gold = Color(0xFFD5A84B);
+
+class SalonBookingApp extends StatelessWidget {
+  const SalonBookingApp({super.key});
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    debugShowCheckedModeBanner: false, title: 'SALON BOOKING',
+    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: green), scaffoldBackgroundColor: const Color(0xFFF7F7F4)),
+    home: const HomePage());
+}
+class Salon {
+  Salon(this.name, this.location, this.services);
+  String name, location;
+  List<String> services;
+}
+const images = <String, List<String>>{
+  'Timaha': ['https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500','https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=500','https://images.unsplash.com/photo-1562322140-8baeececf3df?w=500'],
+  'Qurxinta wajiga': ['https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=500','https://images.unsplash.com/photo-1512496015851-a90fb38ba796?w=500'],
+  'Daryeelka jirka': ['https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=500','https://images.unsplash.com/photo-1540555700478-4be289fbe5b1?w=500'],
+  'Ciddiyaha': ['https://images.unsplash.com/photo-1604654894610-df63bc536371?w=500','https://images.unsplash.com/photo-1610992015732-2449b76344bc?w=500'],
+  'Makeup': ['https://images.unsplash.com/photo-1526045478516-99145907023c?w=500','https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=500'],
+  'Adeegyo kale': ['https://images.unsplash.com/photo-1600948836101-f9ffda59d250?w=500','https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?w=500'],
+};
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+class _HomePageState extends State<HomePage> {
+  bool admin = false;
+  int opened = -1;
+  final List<Salon> salons = List.generate(20, (i) => Salon('Salon ' + (i + 1).toString(), 'Hargeysa',
+    ['Timaha','Qurxinta wajiga','Daryeelka jirka','Ciddiyaha','Makeup','Adeegyo kale']));
+  Future<String?> ask(String title, String hint) async {
+    final c = TextEditingController();
+    return showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(title), content: TextField(controller: c, decoration: InputDecoration(hintText: hint)),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Ka noqo')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Kaydi'))]));
+  }
+  Future<void> addSalon() async {
+    final n = await ask('Ku dar Salon', 'Magaca salon-ka');
+    if (n == null || n.isEmpty || !mounted) return;
+    final l = await ask('Goobta Salon-ka', 'Magaalada / xaafadda');
+    if (!mounted) return;
+    setState(() => salons.add(Salon(n, l ?? 'Hargeysa', ['Timaha','Qurxinta wajiga','Ciddiyaha'])));
+  }
+  Future<void> rename(int i) async {
+    final n = await ask('Beddel magaca', salons[i].name);
+    if (n != null && n.isNotEmpty) setState(() => salons[i].name = n);
+  }
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(backgroundColor: green, foregroundColor: Colors.white,
+      title: const Text('SALON BOOKING', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+      actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
+        IconButton(onPressed: () => setState(() => admin = !admin), icon: Icon(admin ? Icons.admin_panel_settings : Icons.lock_outline), tooltip: 'Admin demo')]),
+    body: ListView(padding: const EdgeInsets.all(14), children: [
+      Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(colors: [green, Color(0xFF164B39)])),
+        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Ku soo dhowow', style: TextStyle(color: Colors.white70)), SizedBox(height: 5),
+          Text('Quruxdaada, hal meel.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8), Text('Dooro salon, adeeg ama dalbo cake.', style: TextStyle(color: Colors.white))])),
+      const SizedBox(height: 18), const Text('SALON-LADA', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 10), ...List.generate(salons.length, salonCard),
+      const SizedBox(height: 18), const Text('ADEEGYO KALE', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8), Row(children: [
+        Expanded(child: actionCard('Cake booking', 'BALLAN QABSO', Icons.cake_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CakePage())))),
+        const SizedBox(width: 10),
+        Expanded(child: actionCard('Dharka & agabka', 'KIRAYSO', Icons.checkroom, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RentalPage()))))]),
+      if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN DEMO: isbeddelladani qalabka oo keliya ayay ku jiraan; database/server wali lama xirin.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
+    ]));
+  Widget salonCard(int i) {
+    final s = salons[i]; final isOpen = opened == i;
+    return Card(margin: const EdgeInsets.only(bottom: 11), clipBehavior: Clip.antiAlias, child: Column(children: [
+      InkWell(onTap: () => setState(() => opened = isOpen ? -1 : i), child: Row(children: [
+        Container(width: 98, height: 88, color: const Color(0xFFE5E9E5), child: const Icon(Icons.storefront, color: green, size: 42)),
+        Expanded(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 4),
+          Row(children: [const Icon(Icons.location_on, size: 15, color: green), Text(s.location)]),
+          const SizedBox(height: 5), Text(isOpen ? 'Qari adeegyada' : 'Taabo si aad adeegyada u aragto', style: const TextStyle(color: green, fontSize: 12))]))),
+        Icon(isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: green), const SizedBox(width: 8)])),
+      if (admin) Wrap(children: [
+        TextButton.icon(onPressed: () => rename(i), icon: const Icon(Icons.edit, size: 16), label: const Text('Magac beddel')),
+        TextButton.icon(onPressed: () => setState(() => salons.removeAt(i)), icon: const Icon(Icons.delete_outline, size: 16), label: const Text('Tirtir'))]),
+      if (isOpen) ...[const Divider(height: 1), ...s.services.map((service) => serviceTile(i, service)),
+        if (admin) TextButton.icon(onPressed: () async { final v = await ask('Ku dar adeeg', 'Magaca adeegga'); if (v != null && v.isNotEmpty) setState(() => s.services.add(v)); },
+          icon: const Icon(Icons.add), label: const Text('Ku dar adeeggan salon-kan'))],
+    ]));
+  }
+  Widget serviceTile(int salonIndex, String service) => ExpansionTile(
+    leading: const Icon(Icons.spa_outlined, color: green), title: Text(service, style: const TextStyle(fontWeight: FontWeight.w600)),
+    children: [SizedBox(height: 128, child: ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6), scrollDirection: Axis.horizontal,
+      itemCount: (images[service] ?? images['Adeegyo kale']!).length, separatorBuilder: (_, __) => const SizedBox(width: 10),
+      itemBuilder: (_, j) { final pics = images[service] ?? images['Adeegyo kale']!;
+        return ClipRRect(borderRadius: BorderRadius.circular(12), child: Stack(children: [
+          Image.network(pics[j], width: 145, height: 112, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 145, height: 112, color: Colors.black12, child: const Icon(Icons.image))),
+          Positioned(left: 5, right: 5, bottom: 5, child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: green, padding: const EdgeInsets.symmetric(horizontal: 5)),
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Adeegga $service: foomka ballanta ayaa lagu xigi doonaa.'))),
+            child: const Text('BALLAN QABSO', style: TextStyle(fontSize: 10))))])); })),
+      if (admin) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => salons[salonIndex].services.remove(service)),
+        child: const Text('Ka saar adeeggan salon-kan', style: TextStyle(color: Colors.red))))]);
+  Widget actionCard(String title, String button, IconData icon, VoidCallback onTap) => Card(child: Padding(padding: const EdgeInsets.all(13), child: Column(children: [
+    Icon(icon, color: green, size: 34), const SizedBox(height: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+    const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? gold : green), onPressed: onTap, child: Text(button)))])));
+}
+
+class CakePage extends StatefulWidget {
+  const CakePage({super.key});
+  @override
+  State<CakePage> createState() => _CakePageState();
+}
+class _CakePageState extends State<CakePage> {
+  final customer = TextEditingController(), decoration = TextEditingController(), delivery = TextEditingController(), place = TextEditingController();
+  String size = 'Dhexdhexaad', tiers = '1', design = 'Casri';
+  @override
+  void dispose() { customer.dispose(); decoration.dispose(); delivery.dispose(); place.dispose(); super.dispose(); }
+  Widget field(TextEditingController c, String label) => TextField(controller: c, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()));
+  Widget pick(String label, String value, List<String> choices, ValueChanged<String?> change) => Padding(padding: const EdgeInsets.only(bottom: 12),
+    child: DropdownButtonFormField<String>(value: value, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      items: choices.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: change));
+  @override
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('BALLAN QABSO — CAKE'), backgroundColor: green, foregroundColor: Colors.white),
+    body: ListView(padding: const EdgeInsets.all(18), children: [
+      const Text('Faahfaahinta cake-ka', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)), const SizedBox(height: 16),
+      field(customer, 'Magacaaga'), const SizedBox(height: 12),
+      pick('Cabirka cake-ka', size, ['Yar','Dhexdhexaad','Weyn','Aad u weyn'], (v) => setState(() => size = v!)),
+      pick('Tirada dabaqyada', tiers, ['1','2','3','4','5+'], (v) => setState(() => tiers = v!)),
+      pick('Naqshadda', design, ['Casri','Classic','Wedding','Birthday','Custom'], (v) => setState(() => design = v!)),
+      const SizedBox(height: 12), field(decoration, 'Midabka iyo qoraalka/magaca cake-ka'),
+      const SizedBox(height: 12), field(delivery, 'Taariikhda iyo waqtiga keenista'),
+      const SizedBox(height: 12), field(place, 'Goobta la geynayo'), const SizedBox(height: 20),
+      FilledButton(onPressed: () {
+        if ([customer.text, delivery.text, place.text].any((v) => v.trim().isEmpty)) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Buuxi magaca, waqtiga iyo goobta keenista.'))); return; }
+        showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Codsiga waa diyaar'),
+          content: Text('Cabir: $size\nDabaqyo: $tiers\nNaqshad: $design\nFaahfaahin: ' + decoration.text + '\nKeenis: ' + delivery.text + '\nGoob: ' + place.text + '\n\nFoomku waa prototype; dirista admin-ka backend ayaa lagu xidhayaa.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Xir'))]));
+      }, child: const Text('DIR CODSIGA'))]));
+}
+
+class RentalPage extends StatelessWidget {
+  const RentalPage({super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('KIRAYSO'), backgroundColor: green, foregroundColor: Colors.white),
+    body: ListView(padding: const EdgeInsets.all(18), children: [
+      const Text('Qaybta kiraynta', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)), const SizedBox(height: 12),
+      ...['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v) => Card(child: ListTile(
+        leading: const Icon(Icons.checkroom, color: green, size: 30), title: Text(v, style: const TextStyle(fontWeight: FontWeight.bold)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () => showDialog(context: context, builder: (_) => AlertDialog(title: Text(v),
+          content: const Text('Halkan waxaa ka muuqan doona agabka kirada iyo muddada kirada.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Xir'))]))))),
+    ]));
+}
