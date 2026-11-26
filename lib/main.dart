@@ -558,7 +558,7 @@ class _CakePageState extends State<CakePage> {
             onPressed: () {
               Navigator.pop(dialogContext);
               showBookingContactOptions(context, widget.whatsappNumber,
-                'BALLAN SALON\\nSalon: ' + widget.salonName + '\\nAdeeg: ' + widget.serviceName + '\\nMagac: ' + name.text.trim() + '\\nTelefoon: ' + phone.text.trim() + '\\nTaariikh: ' + dateText + '\\nWaqti: ' + selectedTime!.format(context) + '\\nFaahfaahin: ' + notes.text.trim());
+                'DALAB CAKE\nMeherad: ' + (widget.providerName ?? '') + '\nMagac: ' + customer.text.trim() + '\nTelefoon: ' + phone.text.trim() + '\nCabir: ' + size + '\nDabaqyo: ' + tiers + '\nNaqshad: ' + design + '\nQurxin/qoraal: ' + decoration.text.trim() + '\nTaariikh: ' + dateText + '\nWaqti: ' + deliveryTime!.format(context) + '\nGoobta: ' + place.text.trim());
             },
             child: const Text('WHATSAPP / CALL NOW'),
           ),
@@ -730,7 +730,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
             onPressed: () {
               Navigator.pop(dialogContext);
               showBookingContactOptions(context, widget.whatsappNumber,
-                'DALAB CAKE\\nMeherad: ' + (widget.providerName ?? '') + '\\nMagac: ' + customer.text.trim() + '\\nTelefoon: ' + phone.text.trim() + '\\nCabir: ' + size + '\\nDabaqyo: ' + tiers + '\\nNaqshad: ' + design + '\\nQurxin/qoraal: ' + decoration.text.trim() + '\\nTaariikh: ' + dateText + '\\nWaqti: ' + deliveryTime!.format(context) + '\\nGoobta: ' + place.text.trim());
+                'BALLAN SALON\nSalon: ' + widget.salonName + '\nAdeeg: ' + widget.serviceName + '\nMagac: ' + name.text.trim() + '\nTelefoon: ' + phone.text.trim() + '\nTaariikh: ' + dateText + '\nWaqti: ' + selectedTime!.format(context) + '\nFaahfaahin: ' + notes.text.trim());
             },
             child: const Text('WHATSAPP / CALL NOW'),
           ),
