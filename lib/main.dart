@@ -838,14 +838,152 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
 class RentalPage extends StatelessWidget {
   const RentalPage({super.key});
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('KIRAYSO'), backgroundColor: green, foregroundColor: Colors.white),
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('KIRAYSO'), backgroundColor: green, foregroundColor: Colors.white),
     body: ListView(padding: const EdgeInsets.all(18), children: [
-      const Text('Qaybta kiraynta', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)), const SizedBox(height: 12),
-      ...['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v) => Card(child: ListTile(
-        leading: const Icon(Icons.checkroom, color: green, size: 30), title: Text(v, style: const TextStyle(fontWeight: FontWeight.bold)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => showDialog(context: context, builder: (_) => AlertDialog(title: Text(v),
-          content: const Text('Halkan waxaa ka muuqan doona agabka kirada iyo muddada kirada.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Xir'))]))))),
-    ]));
+      const Text('Qaybta kiraynta', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: green)),
+      const SizedBox(height: 6),
+      const Text('Dooro qaybta aad rabto, kadib buuxi codsiga kiraysiga.'),
+      const SizedBox(height: 12),
+      ...['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v) => Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(14),
+          leading: const CircleAvatar(backgroundColor: pink, child: Icon(Icons.checkroom, color: green)),
+          title: Text(v, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: const Text('Gudbi codsiga kiraysiga'),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RentalRequestPage(category: v))),
+        ),
+      )),
+    ]),
+  );
+}
+
+class RentalRequestPage extends StatefulWidget {
+  const RentalRequestPage({super.key, required this.category});
+  final String category;
+  @override
+  State<RentalRequestPage> createState() => _RentalRequestPageState();
+}
+
+class _RentalRequestPageState extends State<RentalRequestPage> {
+  final customer = TextEditingController();
+  final phone = TextEditingController();
+  final item = TextEditingController();
+  final size = TextEditingController();
+  final location = TextEditingController();
+  final notes = TextEditingController();
+  DateTime? startDate;
+  DateTime? endDate;
+  bool loading = true;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomer();
+  }
+
+  Future<void> _loadCustomer() async {
+    final p = await SharedPreferences.getInstance();
+    customer.text = p.getString('customer_name') ?? '';
+    phone.text = p.getString('customer_phone') ?? '';
+    if (mounted) setState(() => loading = false);
+  }
+
+  @override
+  void dispose() {
+    customer.dispose(); phone.dispose(); item.dispose(); size.dispose();
+    location.dispose(); notes.dispose(); super.dispose();
+  }
+
+  String dateLabel(DateTime? d) => d == null ? 'Dooro taariikhda' :
+    d.day.toString().padLeft(2, '0') + '/' + d.month.toString().padLeft(2, '0') + '/' + d.year.toString();
+
+  Future<DateTime?> chooseDate(DateTime? current, {DateTime? minimum}) async {
+    final now = DateTime.now();
+    return showDatePicker(
+      context: context,
+      initialDate: current ?? minimum ?? now,
+      firstDate: minimum ?? DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 3),
+    );
+  }
+
+  Widget field(TextEditingController c, String label, {int lines = 1, TextInputType? type}) =>
+    Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(
+      controller: c, maxLines: lines, keyboardType: type,
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder())));
+
+  Future<void> submit() async {
+    if ([customer.text, phone.text, item.text, location.text].any((v) => v.trim().isEmpty) ||
+        startDate == null || endDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Buuxi magaca, telefoonka, agabka, goobta iyo muddada kirada.')));
+      return;
+    }
+    if (endDate!.isBefore(startDate!)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Taariikhda dhammaadka kiradu kama horrayn karto bilowga.')));
+      return;
+    }
+    setState(() => saving = true);
+    final p = await SharedPreferences.getInstance();
+    final records = p.getStringList('rental_booking_requests') ?? <String>[];
+    final request = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'type': 'RENTAL', 'category': widget.category,
+      'item': item.text.trim(), 'size': size.text.trim(),
+      'customerName': customer.text.trim(), 'customerPhone': phone.text.trim(),
+      'startDate': startDate!.toIso8601String().split('T').first,
+      'endDate': endDate!.toIso8601String().split('T').first,
+      'location': location.text.trim(), 'notes': notes.text.trim(),
+      'status': 'Sugaya xaqiijinta', 'createdAt': DateTime.now().toIso8601String(),
+    };
+    records.add(jsonEncode(request));
+    await p.setStringList('rental_booking_requests', records);
+    if (!mounted) return;
+    setState(() => saving = false);
+    showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
+      title: const Text('Codsiga kiraysiga waa la kaydiyey'),
+      content: const Text('Codsiga waxaa lagu kaydiyey telefoonkan oo keliya. Weli looma dirin meherad ama dashboard maamul.'),
+      actions: [FilledButton(onPressed: () {
+        Navigator.pop(ctx);
+        Navigator.pop(context);
+      }, child: const Text('Hagaag'))],
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text('KIRAYSO — ' + widget.category), backgroundColor: green, foregroundColor: Colors.white),
+    body: loading ? const Center(child: CircularProgressIndicator(color: green)) :
+      ListView(padding: const EdgeInsets.all(18), children: [
+        Text(widget.category, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: green)),
+        const SizedBox(height: 14),
+        field(customer, 'Magacaaga'),
+        field(phone, 'Number telefoonka', type: TextInputType.phone),
+        field(item, 'Magaca / nooca agabka aad kiraysanayso'),
+        field(size, 'Cabirka ama midabka (ikhtiyaari)'),
+        OutlinedButton.icon(onPressed: () async {
+          final d = await chooseDate(startDate);
+          if (d != null) setState(() { startDate = d; if (endDate != null && endDate!.isBefore(d)) endDate = null; });
+        }, icon: const Icon(Icons.calendar_today), label: Text('Bilowga kirada: ' + dateLabel(startDate))),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(onPressed: startDate == null ? null : () async {
+          final d = await chooseDate(endDate, minimum: startDate);
+          if (d != null) setState(() => endDate = d);
+        }, icon: const Icon(Icons.event_available), label: Text('Dhammaadka kirada: ' + dateLabel(endDate))),
+        const SizedBox(height: 12),
+        field(location, 'Goobta / xaafadda'),
+        field(notes, 'Faahfaahin dheeraad ah (ikhtiyaari)', lines: 3),
+        const SizedBox(height: 10),
+        SizedBox(height: 52, child: FilledButton(
+          onPressed: saving ? null : submit,
+          style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+          child: saving ? const CircularProgressIndicator(color: Colors.white) : const Text('CODSIGA KIRADA DIR'),
+        )),
+      ]),
+  );
 }
