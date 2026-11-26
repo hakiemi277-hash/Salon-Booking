@@ -168,6 +168,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool admin = false;
   int opened = -1;
+  int selectedSection = -1;
   final List<Salon> salons = List.generate(20, (i) => Salon('Salon ' + (i + 1).toString(), 'Hargeysa',
     ['Timaha','Qurxinta wajiga','Daryeelka jirka','Ciddiyaha','Makeup','Adeegyo kale']));
   Future<String?> ask(String title, String hint) async {
@@ -206,26 +207,67 @@ class _HomePageState extends State<HomePage> {
         child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Ku soo dhowow', style: TextStyle(color: Colors.white70)), SizedBox(height: 5),
           Text('Quruxdaada, hal meel.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.bold)),
-          SizedBox(height: 8), Text('Dooro salon, adeeg ama dalbo cake.', style: TextStyle(color: Colors.white))])),
-      const SizedBox(height: 18), const Text('BALLAN QABSO — SALON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
-      const SizedBox(height: 6), const Text('SALON-LADA', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 10), ...List.generate(salons.length, salonCard),
-      const SizedBox(height: 22),
-      const Text('BALLAN QABSO — CAKES', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
-      const SizedBox(height: 8),
-      categoryDirectoryCard('CAKES', '20 meheradood oo sameeya cakes', Icons.cake_outlined, true),
-      const SizedBox(height: 20),
-      const Text('BALLAN QABSO — DECORATION', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
-      const SizedBox(height: 8),
-      categoryDirectoryCard('DECORATION', '20 meheradood oo decoration ah', Icons.celebration_outlined, false),
-      const SizedBox(height: 20),
-      const Text('KIRAYSO — MARYAHA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
-      const SizedBox(height: 6), const Text('DHARKA IYO AGABKA LA KIRAYSTO', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 8),
-      actionCard('SAD RENTAL, TAASH, TOOBKA MEHERKA, SUBEECIYAD', 'KIRAYSO', Icons.checkroom,
-        () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RentalPage()))),
+          SizedBox(height: 8), Text('Dooro qaybta aad u baahan tahay.', style: TextStyle(color: Colors.white))])),
+      const SizedBox(height: 18),
+      GridView.count(
+        crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1,
+        children: [
+          sectionTile('SALON', 'Adeegyada quruxda', Icons.spa_outlined, 0),
+          sectionTile('CAKES', 'Dalbo cake', Icons.cake_outlined, 1),
+          sectionTile('DECORATION', 'Qurxinta munaasabadaha', Icons.celebration_outlined, 2),
+          sectionTile('KIRAYSO', 'SAD RENTAL, TAASH iyo maryo', Icons.checkroom, 3),
+        ],
+      ),
+      if (selectedSection == 0) ...[
+        const SizedBox(height: 20),
+        const Text('BALLAN QABSO — SALON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
+        const SizedBox(height: 6), const Text('SALON-LADA', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10), ...List.generate(salons.length, salonCard),
+      ],
+      if (selectedSection == 1) ...[
+        const SizedBox(height: 20),
+        const Text('BALLAN QABSO — CAKES', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
+        const SizedBox(height: 8),
+        categoryDirectoryCard('CAKES', '20 meheradood oo sameeya cakes', Icons.cake_outlined, true),
+      ],
+      if (selectedSection == 2) ...[
+        const SizedBox(height: 20),
+        const Text('BALLAN QABSO — DECORATION', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
+        const SizedBox(height: 8),
+        categoryDirectoryCard('DECORATION', '20 meheradood oo decoration ah', Icons.celebration_outlined, false),
+      ],
+      if (selectedSection == 3) ...[
+        const SizedBox(height: 20),
+        const Text('KIRAYSO — MARYAHA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
+        const SizedBox(height: 6), const Text('DHARKA IYO AGABKA LA KIRAYSTO', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        actionCard('SAD RENTAL, TAASH, TOOBKA MEHERKA, SUBEECIYAD', 'KIRAYSO', Icons.checkroom,
+          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RentalPage()))),
+      ],
       if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN DEMO: isbeddelladani qalabka oo keliya ayay ku jiraan; database/server wali lama xirin.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
     ]));
+  Widget sectionTile(String title, String subtitle, IconData icon, int index) => InkWell(
+    onTap: () => setState(() => selectedSection = selectedSection == index ? -1 : index),
+    borderRadius: BorderRadius.circular(18),
+    child: Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: green.withOpacity(.18)), boxShadow: [
+          BoxShadow(color: green.withOpacity(.08), blurRadius: 7, offset: const Offset(0, 3))]),
+      padding: const EdgeInsets.all(12),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(width: 58, height: 58, decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(16)),
+          child: Icon(icon, color: green, size: 32)),
+        const SizedBox(height: 10),
+        Text(title, textAlign: TextAlign.center, style: const TextStyle(color: green, fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(subtitle, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.black54, fontSize: 11)),
+        const SizedBox(height: 6),
+        Icon(selectedSection == index ? Icons.keyboard_arrow_up : Icons.arrow_downward, color: green, size: 18),
+      ]),
+    ),
+  );
   Widget salonCard(int i) {
     final s = salons[i]; final isOpen = opened == i;
     return Card(margin: const EdgeInsets.only(bottom: 11), clipBehavior: Clip.antiAlias, child: Column(children: [
