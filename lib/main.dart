@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -205,7 +206,7 @@ class _HomePageState extends State<HomePage> {
           Image.network(pics[j], width: 145, height: 112, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 145, height: 112, color: Colors.black12, child: const Icon(Icons.image))),
           Positioned(left: 5, right: 5, bottom: 5, child: FilledButton(
             style: FilledButton.styleFrom(backgroundColor: green, padding: const EdgeInsets.symmetric(horizontal: 5)),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Adeegga $service: foomka ballanta ayaa lagu xigi doonaa.'))),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SalonBookingPage(salonName: salons[salonIndex].name, serviceName: service))),
             child: const Text('BALLAN QABSO', style: TextStyle(fontSize: 10))))])); })),
       if (admin) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => salons[salonIndex].services.remove(service)),
         child: const Text('Ka saar adeeggan salon-kan', style: TextStyle(color: Colors.red))))]);
@@ -336,6 +337,168 @@ class _CakePageState extends State<CakePage> {
           content: Text('Cabir: $size\nDabaqyo: $tiers\nNaqshad: $design\nFaahfaahin: ' + decoration.text + '\nKeenis: ' + delivery.text + '\nGoob: ' + place.text + '\n\nFoomku waa prototype; dirista admin-ka backend ayaa lagu xidhayaa.'),
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Xir'))]));
       }, child: const Text('DIR CODSIGA'))]));
+}
+
+
+class SalonBookingPage extends StatefulWidget {
+  const SalonBookingPage({super.key, required this.salonName, required this.serviceName});
+  final String salonName;
+  final String serviceName;
+  @override
+  State<SalonBookingPage> createState() => _SalonBookingPageState();
+}
+
+class _SalonBookingPageState extends State<SalonBookingPage> {
+  final name = TextEditingController();
+  final phone = TextEditingController();
+  final notes = TextEditingController();
+  DateTime? selectedDate;
+  TimeOfDay? selectedTime;
+  bool loading = true;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomer();
+  }
+
+  Future<void> _loadCustomer() async {
+    final prefs = await SharedPreferences.getInstance();
+    name.text = prefs.getString('customer_name') ?? '';
+    phone.text = prefs.getString('customer_phone') ?? '';
+    if (mounted) setState(() => loading = false);
+  }
+
+  @override
+  void dispose() {
+    name.dispose();
+    phone.dispose();
+    notes.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chooseDate() async {
+    final now = DateTime.now();
+    final value = await showDatePicker(
+      context: context,
+      initialDate: selectedDate ?? now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (value != null) setState(() => selectedDate = value);
+  }
+
+  Future<void> _chooseTime() async {
+    final value = await showTimePicker(
+      context: context,
+      initialTime: selectedTime ?? TimeOfDay.now(),
+    );
+    if (value != null) setState(() => selectedTime = value);
+  }
+
+  Future<void> _submit() async {
+    if (name.text.trim().isEmpty || phone.text.trim().isEmpty ||
+        selectedDate == null || selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Buuxi magaca, telefoonka, taariikhda iyo waqtiga ballanta.')),
+      );
+      return;
+    }
+    setState(() => saving = true);
+    final prefs = await SharedPreferences.getInstance();
+    final records = prefs.getStringList('salon_booking_requests') ?? <String>[];
+    final dateText = selectedDate!.year.toString() + '-' +
+      selectedDate!.month.toString().padLeft(2, '0') + '-' +
+      selectedDate!.day.toString().padLeft(2, '0');
+    final booking = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'salon': widget.salonName,
+      'service': widget.serviceName,
+      'customerName': name.text.trim(),
+      'customerPhone': phone.text.trim(),
+      'date': dateText,
+      'time': selectedTime!.format(context),
+      'notes': notes.text.trim(),
+      'status': 'Sugaya xaqiijinta',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    records.add(jsonEncode(booking));
+    await prefs.setStringList('salon_booking_requests', records);
+    if (!mounted) return;
+    setState(() => saving = false);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Codsiga waa la kaydiyey'),
+        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName +
+          ' waa la diiwaangeliyey. Xaqiijinta meheradda wali server laguma xirin.'),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
+            },
+            child: const Text('Hagaag'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('BALLAN QABSO'),
+      backgroundColor: green,
+      foregroundColor: Colors.white,
+    ),
+    body: loading
+      ? const Center(child: CircularProgressIndicator(color: green))
+      : ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(16)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.salonName, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
+                const SizedBox(height: 5),
+                Text('Adeegga: ' + widget.serviceName, style: const TextStyle(color: green)),
+              ]),
+            ),
+            const SizedBox(height: 18),
+            TextField(controller: name, textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Magacaaga', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            TextField(controller: phone, keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Number telefoonka', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _chooseDate,
+              icon: const Icon(Icons.calendar_month),
+              label: Text(selectedDate == null ? 'Dooro taariikhda ballanta' :
+                selectedDate!.day.toString() + '/' + selectedDate!.month.toString() + '/' + selectedDate!.year.toString()),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _chooseTime,
+              icon: const Icon(Icons.access_time),
+              label: Text(selectedTime == null ? 'Dooro waqtiga ballanta' : selectedTime!.format(context)),
+            ),
+            const SizedBox(height: 12),
+            TextField(controller: notes, maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Faahfaahin dheeraad ah (ikhtiyaari)', border: OutlineInputBorder())),
+            const SizedBox(height: 20),
+            SizedBox(height: 50, child: FilledButton(
+              onPressed: saving ? null : _submit,
+              style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+              child: saving ? const CircularProgressIndicator(color: Colors.white) : const Text('DIR CODSIGA'),
+            )),
+          ],
+        ),
+  );
 }
 
 class RentalPage extends StatelessWidget {
