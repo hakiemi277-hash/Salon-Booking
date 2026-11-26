@@ -99,7 +99,7 @@ class _RegistrationGateState extends State<RegistrationGate> {
           Container(width: 88, height: 88, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
             child: const Icon(Icons.spa, color: green, size: 48)),
           const SizedBox(height: 20),
-          const Text('SALON BOOKING', style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: green, letterSpacing: 1)),
+          Image.asset('assets/salon_logo.png', width: 300, height: 112, fit: BoxFit.contain),
           const SizedBox(height: 8),
           const Text('Ku soo dhowow. Isdiiwaangeli si aad u gasho.', textAlign: TextAlign.center, style: TextStyle(color: green)),
           const SizedBox(height: 28),
