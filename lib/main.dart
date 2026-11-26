@@ -69,11 +69,19 @@ class _HomePageState extends State<HomePage> {
           SizedBox(height: 8), Text('Dooro salon, adeeg ama dalbo cake.', style: TextStyle(color: Colors.white))])),
       const SizedBox(height: 18), const Text('SALON-LADA', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
       const SizedBox(height: 10), ...List.generate(salons.length, salonCard),
-      const SizedBox(height: 18), const Text('ADEEGYO KALE', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 8), Row(children: [
-        Expanded(child: actionCard('Cake booking', 'BALLAN QABSO', Icons.cake_outlined, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CakePage())))),
-        const SizedBox(width: 10),
-        Expanded(child: actionCard('Dharka & agabka', 'KIRAYSO', Icons.checkroom, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RentalPage()))))]),
+      const SizedBox(height: 22),
+      const Text('CAKES', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      categoryDirectoryCard('CAKES', '20 meheradood oo sameeya cakes', Icons.cake_outlined, true),
+      const SizedBox(height: 20),
+      const Text('DECORATION', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      categoryDirectoryCard('DECORATION', '20 meheradood oo decoration ah', Icons.celebration_outlined, false),
+      const SizedBox(height: 20),
+      const Text('KIRAYNTA DHARKA IYO AGABKA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8),
+      actionCard('SAD RENTAL, TAASH, TOOBKA MEHERKA, SUBEECIYAD', 'KIRAYSO', Icons.checkroom,
+        () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RentalPage()))),
       if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN DEMO: isbeddelladani qalabka oo keliya ayay ku jiraan; database/server wali lama xirin.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
     ]));
   Widget salonCard(int i) {
@@ -108,13 +116,104 @@ class _HomePageState extends State<HomePage> {
             child: const Text('BALLAN QABSO', style: TextStyle(fontSize: 10))))])); })),
       if (admin) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => salons[salonIndex].services.remove(service)),
         child: const Text('Ka saar adeeggan salon-kan', style: TextStyle(color: Colors.red))))]);
+  Widget categoryDirectoryCard(String title, String subtitle, IconData icon, bool isCake) => Card(
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => ProviderDirectoryPage(title: title, isCake: isCake))),
+      child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
+        Container(width: 58, height: 58, decoration: BoxDecoration(color: const Color(0xFFE5EFE9), borderRadius: BorderRadius.circular(14)),
+          child: Icon(icon, color: green, size: 32)),
+        const SizedBox(width: 13),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+          const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+          const SizedBox(height: 5), const Text('Eeg 20-ka meheradood  →', style: TextStyle(color: green, fontWeight: FontWeight.w600, fontSize: 12)),
+        ])),
+        const Icon(Icons.arrow_forward_ios, size: 17, color: green),
+      ])),
+    ),
+  );
+
   Widget actionCard(String title, String button, IconData icon, VoidCallback onTap) => Card(child: Padding(padding: const EdgeInsets.all(13), child: Column(children: [
     Icon(icon, color: green, size: 34), const SizedBox(height: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
     const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? gold : green), onPressed: onTap, child: Text(button)))])));
 }
 
+class ProviderDirectoryPage extends StatelessWidget {
+  const ProviderDirectoryPage({super.key, required this.title, required this.isCake});
+  final String title;
+  final bool isCake;
+
+  @override
+  Widget build(BuildContext context) {
+    final providers = List<String>.generate(20, (i) =>
+      isCake ? 'Cake Meherad ' + (i + 1).toString() : 'Decoration Meherad ' + (i + 1).toString());
+    return Scaffold(
+      appBar: AppBar(title: Text(title), backgroundColor: green, foregroundColor: Colors.white),
+      body: ListView(padding: const EdgeInsets.all(14), children: [
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(
+          color: const Color(0xFFE5EFE9), borderRadius: BorderRadius.circular(14)),
+          child: Text('Dooro meheradda aad rabto. Waxaa halkan ku jira 20 meheradood oo ' +
+            (isCake ? 'cakes' : 'decoration') + ' ah.', style: const TextStyle(fontWeight: FontWeight.w600))),
+        const SizedBox(height: 12),
+        ...List.generate(providers.length, (i) => Card(
+          margin: const EdgeInsets.only(bottom: 9),
+          child: ListTile(
+            leading: CircleAvatar(backgroundColor: const Color(0xFFE5EFE9),
+              child: Icon(isCake ? Icons.cake_outlined : Icons.celebration_outlined, color: green)),
+            title: Text(providers[i], style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(isCake ? 'Cake design iyo dalabyo' : 'Qurxinta munaasabadaha iyo xafladaha'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              isCake ? CakePage(providerName: providers[i]) : DecorationBookingPage(providerName: providers[i]))),
+          ),
+        )),
+      ]),
+    );
+  }
+}
+
+class DecorationBookingPage extends StatefulWidget {
+  const DecorationBookingPage({super.key, required this.providerName});
+  final String providerName;
+  @override
+  State<DecorationBookingPage> createState() => _DecorationBookingPageState();
+}
+class _DecorationBookingPageState extends State<DecorationBookingPage> {
+  final customer = TextEditingController(), event = TextEditingController(),
+    date = TextEditingController(), place = TextEditingController(), details = TextEditingController();
+  @override
+  void dispose() { customer.dispose(); event.dispose(); date.dispose(); place.dispose(); details.dispose(); super.dispose(); }
+  Widget field(TextEditingController c, String label) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextField(controller: c, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder())));
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('BALLAN QABSO — DECORATION'), backgroundColor: green, foregroundColor: Colors.white),
+    body: ListView(padding: const EdgeInsets.all(18), children: [
+      Text(widget.providerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 15),
+      field(customer, 'Magacaaga'), field(event, 'Nooca munaasabadda'),
+      field(date, 'Taariikhda iyo waqtiga'), field(place, 'Goobta munaasabadda'),
+      field(details, 'Faahfaahinta decoration-ka iyo midabada'),
+      FilledButton(onPressed: () {
+        if ([customer.text, event.text, date.text, place.text].any((v) => v.trim().isEmpty)) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Buuxi magaca, munaasabadda, taariikhda iyo goobta.')));
+          return;
+        }
+        showDialog(context: context, builder: (_) => AlertDialog(
+          title: const Text('Codsiga waa diyaar'),
+          content: const Text('Foomka decoration-ka waa prototype. Dirista meheradda iyo xaqiijinta admin-ka backend ayaa lagu xidhayaa.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Xir'))]));
+      }, child: const Text('DIR CODSIGA')),
+    ]),
+  );
+}
+
 class CakePage extends StatefulWidget {
-  const CakePage({super.key});
+  const CakePage({super.key, this.providerName});
+  final String? providerName;
   @override
   State<CakePage> createState() => _CakePageState();
 }
@@ -128,9 +227,9 @@ class _CakePageState extends State<CakePage> {
     child: DropdownButtonFormField<String>(value: value, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
       items: choices.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: change));
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('BALLAN QABSO — CAKE'), backgroundColor: green, foregroundColor: Colors.white),
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(widget.providerName == null ? 'BALLAN QABSO — CAKE' : 'CAKE — ' + widget.providerName!), backgroundColor: green, foregroundColor: Colors.white),
     body: ListView(padding: const EdgeInsets.all(18), children: [
-      const Text('Faahfaahinta cake-ka', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold)), const SizedBox(height: 16),
+      Text(widget.providerName == null ? 'Faahfaahinta cake-ka' : 'Meheradda: ' + widget.providerName!, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)), const SizedBox(height: 16),
       field(customer, 'Magacaaga'), const SizedBox(height: 12),
       pick('Cabirka cake-ka', size, ['Yar','Dhexdhexaad','Weyn','Aad u weyn'], (v) => setState(() => size = v!)),
       pick('Tirada dabaqyada', tiers, ['1','2','3','4','5+'], (v) => setState(() => tiers = v!)),
