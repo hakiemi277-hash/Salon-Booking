@@ -247,9 +247,52 @@ class _HomePageState extends State<HomePage> {
   }
   @override
   void dispose(){featuredTimer?.cancel();featuredController.dispose();super.dispose();}
+  final Map<String,String> categoryImageUrls={};
+  final Map<String,String> categoryImageIds={};
+  static const String categoryImageMarker='__CATEGORY_IMAGE__';
   Future<void> loadFeatured() async {
-    try{final x=await SalonApi.featuredProducts();if(mounted)setState((){featured=x;featuredLoading=false;});}
-    catch(_){if(mounted)setState(()=>featuredLoading=false);}
+    try{
+      final x=await SalonApi.featuredProducts();
+      final products=<Map<String,dynamic>>[];
+      final urls=<String,String>{}, ids=<String,String>{};
+      for(final p in x){
+        if(p['title']==categoryImageMarker){
+          final c=(p['category']??'').toString();
+          urls[c]=(p['image_url']??'').toString();
+          ids[c]=(p['id']??'').toString();
+        } else { products.add(p); }
+      }
+      if(mounted)setState((){
+        featured=products; categoryImageUrls..clear()..addAll(urls);
+        categoryImageIds..clear()..addAll(ids); featuredLoading=false;
+      });
+    } catch(_){if(mounted)setState(()=>featuredLoading=false);}
+  }
+  Future<void> setCategoryImage(String category) async {
+    final c=TextEditingController(text:categoryImageUrls[category]??'');
+    final url=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
+      title:Text('Sawirka $category'),
+      content:TextField(controller:c,keyboardType:TextInputType.url,decoration:const InputDecoration(
+        labelText:'HTTPS image URL',hintText:'https://...'),),
+      actions:[
+        TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),
+        FilledButton(onPressed:()=>Navigator.pop(ctx,c.text.trim()),child:const Text('Kaydi')),
+      ],
+    ));
+    if(url==null||url.isEmpty||!url.startsWith('https://')||!mounted)return;
+    try{
+      await SalonApi.addFeaturedProduct(adminToken!,{
+        'title':categoryImageMarker,'description':'Home category image',
+        'price':'','currency':'USD','category':category,'imageUrl':url
+      });
+      final oldId=categoryImageIds[category];
+      if(oldId!=null&&oldId.isNotEmpty) await SalonApi.deleteFeaturedProduct(adminToken!,oldId);
+      await loadFeatured();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Sawirka $category waa la beddelay.')));
+    }catch(e){
+      await loadFeatured();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Sawirka lama kaydin: $e')));
+    }
   }
   Future<void> openAdminTools() async {
     if(adminToken==null){
@@ -287,7 +330,7 @@ class _HomePageState extends State<HomePage> {
     if(featuredLoading)return const Padding(padding:EdgeInsets.all(14),child:Center(child:CircularProgressIndicator(color:green)));
     if(featured.isEmpty&&!admin)return const SizedBox.shrink();
     return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('ALAAB CUSUB',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),if(admin)TextButton.icon(onPressed:addFeaturedProduct,icon:const Icon(Icons.add),label:const Text('Ku dar'))]),
+      Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('ALAAB CUSUB',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),if(admin)Wrap(children:[TextButton.icon(onPressed:addFeaturedProduct,icon:const Icon(Icons.add),label:const Text('Ku dar')),TextButton.icon(onPressed:()=>setCategoryImage('SALON'),icon:const Icon(Icons.photo),label:const Text('Sawir Box'))])]),
       if(featured.isEmpty)const Text('Weli alaab cusub lama soo bandhigin.'),
       if(featured.isNotEmpty)SizedBox(height:180,child:PageView.builder(controller:featuredController,itemCount:featured.length,onPageChanged:(i)=>featuredPage=i,itemBuilder:(ctx,i){
         final p=featured[i];return Padding(padding:const EdgeInsets.only(right:10),child:Card(clipBehavior:Clip.antiAlias,child:Row(children:[
@@ -386,27 +429,48 @@ class _HomePageState extends State<HomePage> {
       ],
       if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN DEMO: isbeddelladani qalabka oo keliya ayay ku jiraan; database/server wali lama xirin.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
     ]));
-  Widget sectionTile(String title, String subtitle, IconData icon, int index) => InkWell(
-    onTap: () => setState(() => selectedSection = selectedSection == index ? -1 : index),
-    borderRadius: BorderRadius.circular(18),
-    child: Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: green.withOpacity(.18)), boxShadow: [
-          BoxShadow(color: green.withOpacity(.08), blurRadius: 7, offset: const Offset(0, 3))]),
-      padding: const EdgeInsets.all(12),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(width: 58, height: 58, decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(16)),
-          child: Icon(icon, color: green, size: 32)),
-        const SizedBox(height: 10),
-        Text(title, textAlign: TextAlign.center, style: const TextStyle(color: green, fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        Text(subtitle, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.black54, fontSize: 11)),
-        const SizedBox(height: 6),
-        Icon(selectedSection == index ? Icons.keyboard_arrow_up : Icons.arrow_downward, color: green, size: 18),
-      ]),
-    ),
-  );
+  Widget sectionTile(String title, String subtitle, IconData icon, int index) {
+    final imageUrl=categoryImageUrls[title];
+    return InkWell(
+      onTap: () => setState(() => selectedSection = selectedSection == index ? -1 : index),
+      borderRadius: BorderRadius.circular(18),
+      child: ClipRRect(borderRadius:BorderRadius.circular(18),child:Container(
+        decoration:BoxDecoration(color:Colors.white,border:Border.all(color:green.withOpacity(.18)),boxShadow:[
+          BoxShadow(color:green.withOpacity(.08),blurRadius:7,offset:const Offset(0,3))]),
+        child:Stack(fit:StackFit.expand,children:[
+          if(imageUrl!=null&&imageUrl.isNotEmpty) Image.network(imageUrl,fit:BoxFit.cover,
+            errorBuilder:(_,__,___)=>Container(color:pink,child:Icon(icon,color:green,size:42))),
+          if(imageUrl==null||imageUrl.isEmpty) Container(color:Colors.white),
+          Container(decoration:BoxDecoration(gradient:LinearGradient(
+            begin:Alignment.topCenter,end:Alignment.bottomCenter,
+            colors:imageUrl!=null&&imageUrl.isNotEmpty
+              ? [Colors.black.withOpacity(.12),Colors.black.withOpacity(.68)]
+              : [Colors.white,Colors.white]))),
+          Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+            if(imageUrl==null||imageUrl.isEmpty) Container(width:58,height:58,
+              decoration:BoxDecoration(color:pink,borderRadius:BorderRadius.circular(16)),
+              child:Icon(icon,color:green,size:32)),
+            if(imageUrl!=null&&imageUrl.isNotEmpty) const SizedBox(height:8),
+            const SizedBox(height:10),
+            Text(title,textAlign:TextAlign.center,style:TextStyle(
+              color:imageUrl!=null&&imageUrl.isNotEmpty?Colors.white:green,
+              fontSize:16,fontWeight:FontWeight.bold,shadows:imageUrl!=null&&imageUrl.isNotEmpty
+                ? [const Shadow(color:Colors.black54,blurRadius:4)] : null)),
+            const SizedBox(height:4),
+            Padding(padding:const EdgeInsets.symmetric(horizontal:8),child:Text(subtitle,
+              textAlign:TextAlign.center,maxLines:2,overflow:TextOverflow.ellipsis,
+              style:TextStyle(color:imageUrl!=null&&imageUrl.isNotEmpty?Colors.white:Colors.black54,fontSize:11))),
+            const SizedBox(height:6),
+            Icon(selectedSection==index?Icons.keyboard_arrow_up:Icons.arrow_downward,
+              color:imageUrl!=null&&imageUrl.isNotEmpty?Colors.white:green,size:18),
+          ]),
+          if(admin) Positioned(right:4,top:4,child:Material(color:Colors.black54,shape:const CircleBorder(),
+            child:IconButton(icon:const Icon(Icons.edit,color:Colors.white,size:18),tooltip:'Beddel sawirka',
+              onPressed:()=>setCategoryImage(title)))),
+        ]),
+      )),
+    );
+  }
   Widget salonCard(int i) {
     final s = salons[i]; final isOpen = opened == i;
     return Card(margin: const EdgeInsets.only(bottom: 11), clipBehavior: Clip.antiAlias, child: Column(children: [
