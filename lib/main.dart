@@ -305,38 +305,191 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
   );
 }
 
+
 class CakePage extends StatefulWidget {
   const CakePage({super.key, this.providerName});
   final String? providerName;
   @override
   State<CakePage> createState() => _CakePageState();
 }
+
 class _CakePageState extends State<CakePage> {
-  final customer = TextEditingController(), decoration = TextEditingController(), delivery = TextEditingController(), place = TextEditingController();
+  final customer = TextEditingController();
+  final phone = TextEditingController();
+  final decoration = TextEditingController();
+  final place = TextEditingController();
   String size = 'Dhexdhexaad', tiers = '1', design = 'Casri';
+  DateTime? deliveryDate;
+  TimeOfDay? deliveryTime;
+  bool loading = true;
+  bool saving = false;
+
   @override
-  void dispose() { customer.dispose(); decoration.dispose(); delivery.dispose(); place.dispose(); super.dispose(); }
-  Widget field(TextEditingController c, String label) => TextField(controller: c, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()));
-  Widget pick(String label, String value, List<String> choices, ValueChanged<String?> change) => Padding(padding: const EdgeInsets.only(bottom: 12),
-    child: DropdownButtonFormField<String>(value: value, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-      items: choices.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: change));
+  void initState() {
+    super.initState();
+    _loadCustomer();
+  }
+
+  Future<void> _loadCustomer() async {
+    final prefs = await SharedPreferences.getInstance();
+    customer.text = prefs.getString('customer_name') ?? '';
+    phone.text = prefs.getString('customer_phone') ?? '';
+    if (mounted) setState(() => loading = false);
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(widget.providerName == null ? 'BALLAN QABSO — CAKE' : 'CAKE — ' + widget.providerName!), backgroundColor: green, foregroundColor: Colors.white),
-    body: ListView(padding: const EdgeInsets.all(18), children: [
-      Text(widget.providerName == null ? 'Faahfaahinta cake-ka' : 'Meheradda: ' + widget.providerName!, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)), const SizedBox(height: 16),
-      field(customer, 'Magacaaga'), const SizedBox(height: 12),
-      pick('Cabirka cake-ka', size, ['Yar','Dhexdhexaad','Weyn','Aad u weyn'], (v) => setState(() => size = v!)),
-      pick('Tirada dabaqyada', tiers, ['1','2','3','4','5+'], (v) => setState(() => tiers = v!)),
-      pick('Naqshadda', design, ['Casri','Classic','Wedding','Birthday','Custom'], (v) => setState(() => design = v!)),
-      const SizedBox(height: 12), field(decoration, 'Midabka iyo qoraalka/magaca cake-ka'),
-      const SizedBox(height: 12), field(delivery, 'Taariikhda iyo waqtiga keenista'),
-      const SizedBox(height: 12), field(place, 'Goobta la geynayo'), const SizedBox(height: 20),
-      FilledButton(onPressed: () {
-        if ([customer.text, delivery.text, place.text].any((v) => v.trim().isEmpty)) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Buuxi magaca, waqtiga iyo goobta keenista.'))); return; }
-        showDialog(context: context, builder: (_) => AlertDialog(title: const Text('Codsiga waa diyaar'),
-          content: Text('Cabir: $size\nDabaqyo: $tiers\nNaqshad: $design\nFaahfaahin: ' + decoration.text + '\nKeenis: ' + delivery.text + '\nGoob: ' + place.text + '\n\nFoomku waa prototype; dirista admin-ka backend ayaa lagu xidhayaa.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Xir'))]));
-      }, child: const Text('DIR CODSIGA'))]));
+  void dispose() {
+    customer.dispose();
+    phone.dispose();
+    decoration.dispose();
+    place.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chooseDeliveryDate() async {
+    final now = DateTime.now();
+    final value = await showDatePicker(
+      context: context,
+      initialDate: deliveryDate ?? now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (value != null) setState(() => deliveryDate = value);
+  }
+
+  Future<void> _chooseDeliveryTime() async {
+    final value = await showTimePicker(
+      context: context,
+      initialTime: deliveryTime ?? TimeOfDay.now(),
+    );
+    if (value != null) setState(() => deliveryTime = value);
+  }
+
+  Widget pick(String label, String value, List<String> choices, ValueChanged<String?> change) =>
+    Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        items: choices.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+        onChanged: change,
+      ),
+    );
+
+  Future<void> _submit() async {
+    if (customer.text.trim().isEmpty || phone.text.trim().isEmpty ||
+        deliveryDate == null || deliveryTime == null || place.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Buuxi magaca, telefoonka, taariikhda, waqtiga iyo goobta keenista.')),
+      );
+      return;
+    }
+    setState(() => saving = true);
+    final prefs = await SharedPreferences.getInstance();
+    final records = prefs.getStringList('cake_booking_requests') ?? <String>[];
+    final dateText = deliveryDate!.year.toString() + '-' +
+      deliveryDate!.month.toString().padLeft(2, '0') + '-' +
+      deliveryDate!.day.toString().padLeft(2, '0');
+    final request = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'type': 'CAKE',
+      'provider': widget.providerName ?? 'Meherad aan wali la dooran',
+      'customerName': customer.text.trim(),
+      'customerPhone': phone.text.trim(),
+      'size': size,
+      'tiers': tiers,
+      'design': design,
+      'decorationAndText': decoration.text.trim(),
+      'deliveryDate': dateText,
+      'deliveryTime': deliveryTime!.format(context),
+      'deliveryLocation': place.text.trim(),
+      'status': 'Sugaya xaqiijinta',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    records.add(jsonEncode(request));
+    await prefs.setStringList('cake_booking_requests', records);
+    if (!mounted) return;
+    setState(() => saving = false);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Codsiga cake-ka waa la kaydiyey'),
+        content: const Text('Dalabkaaga waxaa lagu kaydiyey telefoonkan. Weli si toos ah uguma gudbayo meheradda ama maamulka; server ayaa loo baahan yahay.'),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
+            },
+            child: const Text('Hagaag'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(widget.providerName == null ? 'BALLAN QABSO — CAKE' : 'CAKE — ' + widget.providerName!),
+      backgroundColor: green,
+      foregroundColor: Colors.white,
+    ),
+    body: loading
+      ? const Center(child: CircularProgressIndicator(color: green))
+      : ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(16)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('DALABKA CAKE-KA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
+                if (widget.providerName != null) ...[
+                  const SizedBox(height: 5),
+                  Text('Meheradda: ' + widget.providerName!, style: const TextStyle(color: green)),
+                ],
+              ]),
+            ),
+            const SizedBox(height: 16),
+            TextField(controller: customer, textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Magacaaga', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            TextField(controller: phone, keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(labelText: 'Number telefoonka', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            pick('Cabirka cake-ka', size, ['Yar','Dhexdhexaad','Weyn','Aad u weyn'], (v) => setState(() => size = v!)),
+            pick('Tirada dabaqyada', tiers, ['1','2','3','4','5+'], (v) => setState(() => tiers = v!)),
+            pick('Naqshadda', design, ['Casri','Classic','Wedding','Birthday','Custom'], (v) => setState(() => design = v!)),
+            const SizedBox(height: 4),
+            TextField(controller: decoration, maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Midabka, qurxinta iyo qoraalka/magaca cake-ka', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _chooseDeliveryDate,
+              icon: const Icon(Icons.calendar_month),
+              label: Text(deliveryDate == null ? 'Dooro taariikhda keenista' :
+                deliveryDate!.day.toString() + '/' + deliveryDate!.month.toString() + '/' + deliveryDate!.year.toString()),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _chooseDeliveryTime,
+              icon: const Icon(Icons.access_time),
+              label: Text(deliveryTime == null ? 'Dooro waqtiga keenista' : deliveryTime!.format(context)),
+            ),
+            const SizedBox(height: 12),
+            TextField(controller: place, maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Goobta la geynayo', border: OutlineInputBorder())),
+            const SizedBox(height: 20),
+            SizedBox(height: 50, child: FilledButton(
+              onPressed: saving ? null : _submit,
+              style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+              child: saving ? const CircularProgressIndicator(color: Colors.white) : const Text('BALLAN QABSO'),
+            )),
+          ],
+        ),
+  );
 }
 
 
