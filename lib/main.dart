@@ -1,11 +1,42 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 void main() => runApp(const SalonBookingApp());
 const green = Color(0xFF173F35);
 const pink = Color(0xFFF7C8D8);
+
+class SalonApi {
+  static const String baseUrl = 'https://salon-booking-api.cabdihakiimjaamac112.workers.dev';
+
+  static Future<Map<String, dynamic>> createBooking({
+    required String category,
+    required String customerName,
+    required String customerPhone,
+    required String customerWhatsApp,
+    required Map<String, dynamic> details,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/bookings'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'category': category,
+        'customerName': customerName,
+        'customerPhone': customerPhone,
+        'customerWhatsApp': customerWhatsApp,
+        'details': details,
+      }),
+    );
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode < 200 || response.statusCode >= 300 || decoded['ok'] != true) {
+      throw Exception(decoded['error'] ?? 'Codsiga server-ka lama gudbin.');
+    }
+    return decoded;
+  }
+}
+
 
 class SalonBookingApp extends StatelessWidget {
   const SalonBookingApp({super.key});
@@ -77,6 +108,7 @@ class RegistrationGate extends StatefulWidget {
 class _RegistrationGateState extends State<RegistrationGate> {
   final nameController = TextEditingController();
   final phoneController = TextEditingController();
+  final whatsappController = TextEditingController();
   bool loading = true;
   bool saving = false;
   String? error;
@@ -110,7 +142,9 @@ class _RegistrationGateState extends State<RegistrationGate> {
     setState(() { saving = true; error = null; });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('customer_name', name);
+    final whatsapp = whatsappController.text.trim().isEmpty ? phone : whatsappController.text.trim();
     await prefs.setString('customer_phone', phone);
+    await prefs.setString('customer_whatsapp', whatsapp);
     if (!mounted) return;
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
   }
@@ -119,6 +153,7 @@ class _RegistrationGateState extends State<RegistrationGate> {
   void dispose() {
     nameController.dispose();
     phoneController.dispose();
+    whatsappController.dispose();
     super.dispose();
   }
 
@@ -145,6 +180,8 @@ class _RegistrationGateState extends State<RegistrationGate> {
           const Text('Ku soo dhowow. Isdiiwaangeli si aad u gasho.', textAlign: TextAlign.center, style: TextStyle(color: green)),
           const SizedBox(height: 28),
           TextField(controller: phoneController, keyboardType: TextInputType.phone, decoration: _decoration('Geli Number kaaga', Icons.phone)),
+          const SizedBox(height: 14),
+          TextField(controller: whatsappController, keyboardType: TextInputType.phone, decoration: _decoration('Number-ka WhatsApp (haddii uu ka duwan yahay)', Icons.chat)),
           const SizedBox(height: 14),
           TextField(controller: nameController, textCapitalization: TextCapitalization.words, decoration: _decoration('Geli magacaaga', Icons.person)),
           if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: const TextStyle(color: Colors.red))),
@@ -438,6 +475,21 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
     }
     setState(() => saving = true);
     final prefs = await SharedPreferences.getInstance();
+    try {
+      await SalonApi.createBooking(
+        category: 'DECORATION',
+        customerName: customer.text.trim(),
+        customerPhone: phone.text.trim(),
+        customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
+        details: {'provider': widget.providerName, 'event': event.text.trim(), 'date': date.text.trim(),
+          'place': place.text.trim(), 'details': details.text.trim()},
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diristu way fashilantay: $e')));
+      return;
+    }
     final records = prefs.getStringList('decoration_booking_requests') ?? <String>[];
     final request = <String, dynamic>{
       'id': DateTime.now().microsecondsSinceEpoch.toString(),
@@ -565,6 +617,23 @@ class _CakePageState extends State<CakePage> {
     }
     setState(() => saving = true);
     final prefs = await SharedPreferences.getInstance();
+    try {
+      await SalonApi.createBooking(
+        category: 'CAKES',
+        customerName: customer.text.trim(),
+        customerPhone: phone.text.trim(),
+        customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
+        details: {'provider': widget.providerName ?? 'Meherad aan wali la dooran', 'size': size,
+          'tiers': tiers, 'design': design, 'decorationAndText': decoration.text.trim(),
+          'deliveryDate': deliveryDate!.toIso8601String().split('T').first,
+          'deliveryTime': deliveryTime!.format(context), 'deliveryLocation': place.text.trim()},
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diristu way fashilantay: $e')));
+      return;
+    }
     final records = prefs.getStringList('cake_booking_requests') ?? <String>[];
     final dateText = deliveryDate!.year.toString() + '-' +
       deliveryDate!.month.toString().padLeft(2, '0') + '-' +
@@ -741,6 +810,22 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
     }
     setState(() => saving = true);
     final prefs = await SharedPreferences.getInstance();
+    try {
+      await SalonApi.createBooking(
+        category: 'SALON',
+        customerName: name.text.trim(),
+        customerPhone: phone.text.trim(),
+        customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
+        details: {'salon': widget.salonName, 'service': widget.serviceName,
+          'date': selectedDate!.toIso8601String().split('T').first,
+          'time': selectedTime!.format(context), 'notes': notes.text.trim()},
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diristu way fashilantay: $e')));
+      return;
+    }
     final records = prefs.getStringList('salon_booking_requests') ?? <String>[];
     final dateText = selectedDate!.year.toString() + '-' +
       selectedDate!.month.toString().padLeft(2, '0') + '-' +
@@ -930,6 +1015,23 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
     }
     setState(() => saving = true);
     final p = await SharedPreferences.getInstance();
+    try {
+      await SalonApi.createBooking(
+        category: 'KIRAYSO',
+        customerName: customer.text.trim(),
+        customerPhone: phone.text.trim(),
+        customerWhatsApp: p.getString('customer_whatsapp') ?? phone.text.trim(),
+        details: {'rentalCategory': widget.category, 'item': item.text.trim(), 'size': size.text.trim(),
+          'startDate': startDate!.toIso8601String().split('T').first,
+          'endDate': endDate!.toIso8601String().split('T').first,
+          'location': location.text.trim(), 'notes': notes.text.trim()},
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diristu way fashilantay: $e')));
+      return;
+    }
     final records = p.getStringList('rental_booking_requests') ?? <String>[];
     final request = <String, dynamic>{
       'id': DateTime.now().microsecondsSinceEpoch.toString(),
