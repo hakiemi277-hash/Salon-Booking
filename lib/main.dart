@@ -330,7 +330,7 @@ class _HomePageState extends State<HomePage> {
     if(featuredLoading)return const Padding(padding:EdgeInsets.all(14),child:Center(child:CircularProgressIndicator(color:green)));
     if(featured.isEmpty&&!admin)return const SizedBox.shrink();
     return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('ALAAB CUSUB',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),if(admin)Wrap(children:[TextButton.icon(onPressed:addFeaturedProduct,icon:const Icon(Icons.add),label:const Text('Ku dar')),TextButton.icon(onPressed:()=>setCategoryImage('SALON'),icon:const Icon(Icons.photo),label:const Text('Sawir Box'))])]),
+      Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[const Text('ALAAB CUSUB',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),if(admin)TextButton.icon(onPressed:addFeaturedProduct,icon:const Icon(Icons.add),label:const Text('Ku dar'))]),
       if(featured.isEmpty)const Text('Weli alaab cusub lama soo bandhigin.'),
       if(featured.isNotEmpty)SizedBox(height:180,child:PageView.builder(controller:featuredController,itemCount:featured.length,onPageChanged:(i)=>featuredPage=i,itemBuilder:(ctx,i){
         final p=featured[i];return Padding(padding:const EdgeInsets.only(right:10),child:Card(clipBehavior:Clip.antiAlias,child:Row(children:[
@@ -432,7 +432,13 @@ class _HomePageState extends State<HomePage> {
   Widget sectionTile(String title, String subtitle, IconData icon, int index) {
     final imageUrl=categoryImageUrls[title];
     return InkWell(
-      onTap: () => setState(() => selectedSection = selectedSection == index ? -1 : index),
+      onTap: () {
+        if (index == 2) {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ProviderDirectoryPage(title: 'DECORATION', isCake: false)));
+          return;
+        }
+        setState(() => selectedSection = selectedSection == index ? -1 : index);
+      },
       borderRadius: BorderRadius.circular(18),
       child: ClipRRect(borderRadius:BorderRadius.circular(18),child:Container(
         decoration:BoxDecoration(color:Colors.white,border:Border.all(color:green.withOpacity(.18)),boxShadow:[
