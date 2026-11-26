@@ -205,7 +205,7 @@ class _HomePageState extends State<HomePage> {
           Image.network(pics[j], width: 145, height: 112, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 145, height: 112, color: Colors.black12, child: const Icon(Icons.image))),
           Positioned(left: 5, right: 5, bottom: 5, child: FilledButton(
             style: FilledButton.styleFrom(backgroundColor: green, padding: const EdgeInsets.symmetric(horizontal: 5)),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Adeegga $service: foomka ballanta ayaa lagu xigi doonaa.'))),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SalonBookingPage(salonName: salons[salonIndex].name, serviceName: service))),
             child: const Text('BALLAN QABSO', style: TextStyle(fontSize: 10))))])); })),
       if (admin) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => salons[salonIndex].services.remove(service)),
         child: const Text('Ka saar adeeggan salon-kan', style: TextStyle(color: Colors.red))))]);
@@ -231,6 +231,221 @@ class _HomePageState extends State<HomePage> {
   Widget actionCard(String title, String button, IconData icon, VoidCallback onTap) => Card(child: Padding(padding: const EdgeInsets.all(13), child: Column(children: [
     Icon(icon, color: green, size: 34), const SizedBox(height: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
     const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? pink : green, foregroundColor: button == 'KIRAYSO' ? green : Colors.white), onPressed: onTap, child: Text(button)))])));
+}
+
+
+class SalonBookingPage extends StatefulWidget {
+  const SalonBookingPage({super.key, required this.salonName, required this.serviceName});
+  final String salonName;
+  final String serviceName;
+  @override
+  State<SalonBookingPage> createState() => _SalonBookingPageState();
+}
+
+class _SalonBookingPageState extends State<SalonBookingPage> {
+  final formKey = GlobalKey<FormState>();
+  final name = TextEditingController();
+  final phone = TextEditingController();
+  final location = TextEditingController();
+  final notes = TextEditingController();
+  DateTime? appointmentDate;
+  TimeOfDay? appointmentTime;
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomer();
+  }
+
+  Future<void> _loadCustomer() async {
+    final prefs = await SharedPreferences.getInstance();
+    name.text = prefs.getString('customer_name') ?? '';
+    phone.text = prefs.getString('customer_phone') ?? '';
+    if (mounted) setState(() => loading = false);
+  }
+
+  @override
+  void dispose() {
+    name.dispose();
+    phone.dispose();
+    location.dispose();
+    notes.dispose();
+    super.dispose();
+  }
+
+  String get dateLabel => appointmentDate == null
+      ? 'Dooro taariikhda'
+      : '${appointmentDate!.day.toString().padLeft(2, '0')}/${appointmentDate!.month.toString().padLeft(2, '0')}/${appointmentDate!.year}';
+
+  String get timeLabel => appointmentTime == null
+      ? 'Dooro waqtiga'
+      : appointmentTime!.format(context);
+
+  Future<void> _chooseDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: appointmentDate ?? now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (picked != null) setState(() => appointmentDate = picked);
+  }
+
+  Future<void> _chooseTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: appointmentTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) setState(() => appointmentTime = picked);
+  }
+
+  InputDecoration _fieldDecoration(String label, IconData icon) => InputDecoration(
+    labelText: label,
+    prefixIcon: Icon(icon, color: green),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(13)),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(13),
+      borderSide: const BorderSide(color: green, width: 1.5),
+    ),
+  );
+
+  void _submit() {
+    if (!formKey.currentState!.validate()) return;
+    if (appointmentDate == null || appointmentTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dooro taariikhda iyo waqtiga ballanta.')),
+      );
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Faahfaahinta ballanta'),
+        content: Text(
+          'Salon: ${widget.salonName}\n'
+          'Adeeg: ${widget.serviceName}\n'
+          'Magac: ${name.text.trim()}\n'
+          'Telefoon: ${phone.text.trim()}\n'
+          'Taariikh: $dateLabel\n'
+          'Waqti: $timeLabel\n'
+          'Goob: ${location.text.trim()}\n'
+          'Faahfaahin: ${notes.text.trim()}\n\n'
+          'Tani hadda waa codsi tijaabo ah oo aan wali u dirmin salon-ka. '
+          'Xiriirka server-ka iyo xaqiijinta salon-ka waxaa lagu dari doonaa tallaabada xigta.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Xir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: green)),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('BALLAN QABSO'),
+        backgroundColor: green,
+        foregroundColor: Colors.white,
+      ),
+      body: Form(
+        key: formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: green.withOpacity(.12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Adeegga aad dooratay',
+                    style: TextStyle(color: Colors.black54, fontSize: 12)),
+                  const SizedBox(height: 5),
+                  Text(widget.serviceName,
+                    style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: green)),
+                  const SizedBox(height: 5),
+                  Text(widget.salonName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            TextFormField(
+              controller: name,
+              textCapitalization: TextCapitalization.words,
+              decoration: _fieldDecoration('Magacaaga', Icons.person_outline),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Geli magacaaga.' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: phone,
+              keyboardType: TextInputType.phone,
+              decoration: _fieldDecoration('Number-ka telefoonka', Icons.phone_outlined),
+              validator: (v) {
+                final digits = (v ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                return digits.length < 7 ? 'Geli number sax ah.' : null;
+              },
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _chooseDate,
+              icon: const Icon(Icons.calendar_month, color: green),
+              label: Text(dateLabel, style: const TextStyle(color: green)),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                side: BorderSide(color: green.withOpacity(.35)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _chooseTime,
+              icon: const Icon(Icons.access_time, color: green),
+              label: Text(timeLabel, style: const TextStyle(color: green)),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                side: BorderSide(color: green.withOpacity(.35)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: location,
+              decoration: _fieldDecoration('Goobta / xaafadda', Icons.location_on_outlined),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Geli goobta.' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: notes,
+              maxLines: 3,
+              decoration: _fieldDecoration('Faahfaahin dheeraad ah (ikhtiyaari)', Icons.notes),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: _submit,
+                style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+                child: const Text('DIR CODSIGA', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class ProviderDirectoryPage extends StatelessWidget {
