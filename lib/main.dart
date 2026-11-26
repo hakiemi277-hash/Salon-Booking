@@ -354,36 +354,91 @@ class DecorationBookingPage extends StatefulWidget {
   State<DecorationBookingPage> createState() => _DecorationBookingPageState();
 }
 class _DecorationBookingPageState extends State<DecorationBookingPage> {
-  final customer = TextEditingController(), event = TextEditingController(),
-    date = TextEditingController(), place = TextEditingController(), details = TextEditingController();
+  final customer = TextEditingController();
+  final phone = TextEditingController();
+  final event = TextEditingController();
+  final date = TextEditingController();
+  final place = TextEditingController();
+  final details = TextEditingController();
+  bool saving = false;
+
   @override
-  void dispose() { customer.dispose(); event.dispose(); date.dispose(); place.dispose(); details.dispose(); super.dispose(); }
-  Widget field(TextEditingController c, String label) => Padding(
+  void initState() {
+    super.initState();
+    _loadCustomer();
+  }
+
+  Future<void> _loadCustomer() async {
+    final prefs = await SharedPreferences.getInstance();
+    customer.text = prefs.getString('customer_name') ?? '';
+    phone.text = prefs.getString('customer_phone') ?? '';
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    customer.dispose(); phone.dispose(); event.dispose(); date.dispose();
+    place.dispose(); details.dispose(); super.dispose();
+  }
+
+  Widget field(TextEditingController c, String label, {int lines = 1, TextInputType? type}) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: TextField(controller: c, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder())));
+    child: TextField(controller: c, maxLines: lines, keyboardType: type,
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder())));
+
+  Future<void> _submit() async {
+    if ([customer.text, phone.text, event.text, date.text, place.text].any((v) => v.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Buuxi magaca, telefoonka, munaasabadda, taariikhda iyo goobta.')));
+      return;
+    }
+    setState(() => saving = true);
+    final prefs = await SharedPreferences.getInstance();
+    final records = prefs.getStringList('decoration_booking_requests') ?? <String>[];
+    final request = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'type': 'DECORATION', 'provider': widget.providerName,
+      'customerName': customer.text.trim(), 'customerPhone': phone.text.trim(),
+      'event': event.text.trim(), 'date': date.text.trim(), 'place': place.text.trim(),
+      'details': details.text.trim(), 'status': 'Sugaya xaqiijinta',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    records.add(jsonEncode(request));
+    await prefs.setStringList('decoration_booking_requests', records);
+    if (!mounted) return;
+    setState(() => saving = false);
+    showDialog(context: context, barrierDismissible: false, builder: (dialogContext) => AlertDialog(
+      title: const Text('Codsiga decoration-ka waa la kaydiyey'),
+      content: const Text('Xogta codsiga waa la kaydiyey telefoonka. Hadda dooro WhatsApp ama wicitaan.'),
+      actions: [FilledButton(onPressed: () {
+        Navigator.pop(dialogContext);
+        showBookingContactOptions(context, widget.whatsappNumber,
+          'BALLAN DECORATION\\nMeherad: ' + widget.providerName +
+          '\\nMagac: ' + customer.text.trim() + '\\nTelefoon: ' + phone.text.trim() +
+          '\\nMunaasabadda: ' + event.text.trim() + '\\nTaariikh: ' + date.text.trim() +
+          '\\nGoobta: ' + place.text.trim() + '\\nFaahfaahin: ' + details.text.trim());
+      }, child: const Text('WHATSAPP / CALL NOW'))],
+    ));
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('BALLAN QABSO — DECORATION'), backgroundColor: green, foregroundColor: Colors.white),
     body: ListView(padding: const EdgeInsets.all(18), children: [
       Text(widget.providerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
       const SizedBox(height: 15),
-      field(customer, 'Magacaaga'), field(event, 'Nooca munaasabadda'),
-      field(date, 'Taariikhda iyo waqtiga'), field(place, 'Goobta munaasabadda'),
-      field(details, 'Faahfaahinta decoration-ka iyo midabada'),
-      FilledButton(onPressed: () {
-        if ([customer.text, event.text, date.text, place.text].any((v) => v.trim().isEmpty)) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Buuxi magaca, munaasabadda, taariikhda iyo goobta.')));
-          return;
-        }
-        showDialog(context: context, builder: (_) => AlertDialog(
-          title: const Text('Codsiga waa diyaar'),
-          content: const Text('Foomka decoration-ka waa prototype. Dirista meheradda iyo xaqiijinta admin-ka backend ayaa lagu xidhayaa.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Xir'))]));
-      }, child: const Text('DIR CODSIGA')),
+      field(customer, 'Magacaaga'),
+      field(phone, 'Number telefoonka', type: TextInputType.phone),
+      field(event, 'Nooca munaasabadda'),
+      field(date, 'Taariikhda iyo waqtiga'),
+      field(place, 'Goobta munaasabadda'),
+      field(details, 'Faahfaahinta decoration-ka iyo midabada', lines: 3),
+      SizedBox(height: 50, child: FilledButton(
+        onPressed: saving ? null : _submit,
+        child: saving ? const CircularProgressIndicator(color: Colors.white) : const Text('BALLAN QABSO'))),
     ]),
   );
 }
-
 
 class CakePage extends StatefulWidget {
   const CakePage({super.key, this.providerName, this.whatsappNumber = ''});
