@@ -710,17 +710,23 @@ class _HomePageState extends State<HomePage> {
         FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Kaydi'))]));
   }
   Future<void> addSalon() async {
-    if(adminToken==null)return;
+    if(adminToken==null){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Admin kuma jiro. Fadlan dib uga gal Admin-ka.')));
+      return;
+    }
     final n=await ask('Ku dar Salon','Magaca salon-ka');
-    if(n==null||n.isEmpty||!mounted)return;
+    if(n==null||!mounted)return;
+    if(n.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Magaca salon-ka waa waajib.')));return;}
     final l=await ask('Goobta Salon-ka','Magaalada / xaafadda');
     if(!mounted)return;
     final w=await ask('WhatsApp-ka Salon-ka','Tusaale: 25263xxxxxxx');
     if(!mounted)return;
     final username=await ask('Akoonka meheradda','Username-ka uu ku geli doono');
-    if(username==null||username.trim().isEmpty||!mounted)return;
+    if(username==null||!mounted)return;
+    if(username.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Username-ka waa waajib.')));return;}
     final password=await ask('Password-ka meheradda','Ugu yaraan 10 xaraf');
-    if(password==null||password.length<10||!mounted)return;
+    if(password==null||!mounted)return;
+    if(password.trim().length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Password-ku waa inuu ugu yaraan 10 xaraf ahaadaa.')));return;}
     try {
       await SalonApi.createMerchantWithOwner(adminToken!,{'category':'SALON','name':n.trim(),'location':(l??'Hargeysa').trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password});
       await loadSalons();
