@@ -1274,7 +1274,7 @@ class _AdminPaymentsPageState extends State<AdminPaymentsPage>{
           FilledButton(onPressed:()=>review(p,'La xaqiijiyey'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('Xaqiiji lacagta')),
           OutlinedButton(onPressed:()=>review(p,'Lama xaqiijin'),child:const Text('Diid')),
         ]),
-      ])))
+      ])))),
     ])
   );
 }
