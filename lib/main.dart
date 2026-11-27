@@ -2223,12 +2223,24 @@ class _OwnerBookingsPageState extends State<OwnerBookingsPage> {
   List<Map<String,dynamic>> bookings=[];
   bool loading=true;
   String? error;
+  String filter='DHAMMAAN';
   @override
   void initState(){super.initState();load();}
   Future<void> load() async {
-    setState(()=>loading=true);
+    if(mounted)setState(()=>loading=true);
     try{final rows=await SalonApi.ownerBookings(widget.token);if(mounted)setState(()=>{bookings=rows,error=null,loading=false});}
     catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  List<Map<String,dynamic>> get visibleBookings {
+    final statuses=switch(filter){
+      'SUGAYA'=>['Sugaya jawaab'],
+      'LA AQBALAY'=>['La aqbalay'],
+      'LA DHAMMEEYEY'=>['La dhammeeyey','COMPLETED'],
+      'LA DIIDAY'=>['Lama heli karo'],
+      _=>null,
+    };
+    if(statuses==null)return bookings;
+    return bookings.where((b)=>statuses.contains((b['status']??'').toString())).toList();
   }
   Future<void> recordIncome(Map<String,dynamic> booking) async {
     final amount=TextEditingController();
@@ -2242,10 +2254,10 @@ class _OwnerBookingsPageState extends State<OwnerBookingsPage> {
       ]),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('JOOJI')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('KAYDI'))],
     )));
-    if(ok!=true)return;
-    final n=double.tryParse(amount.text.trim());
+    if(ok!=true){amount.dispose();return;}
+    final n=double.tryParse(amount.text.trim());amount.dispose();
     if(n==null||n<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Geli lacag sax ah.')));return;}
-    try{await SalonApi.recordRevenue(widget.token,{'bookingId':booking['id'],'amount':n,'currency':currency,'serviceDate':DateTime.now().toIso8601String().substring(0,10)});await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Dakhliga waa la diiwaangeliyey.')));}
+    try{await SalonApi.recordRevenue(widget.token,{'bookingId':booking['id'],'amount':n,'currency':currency,'serviceDate':DateTime.now().toIso8601String().substring(0,10)});await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Adeegga waa la dhammeeyey, dakhliga iyo taariikhdana waa la kaydiyey.')));}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
   Future<void> review(Map<String,dynamic> booking,String status) async {
@@ -2253,25 +2265,32 @@ class _OwnerBookingsPageState extends State<OwnerBookingsPage> {
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
   @override
-  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('BALLAMAHA SALON-KA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
-    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):bookings.isEmpty?const Center(child:Text('Weli ballamo ma jiraan.')):ListView(padding:const EdgeInsets.all(14),children:bookings.map((b){
-      Map<String,dynamic> d={};try{d=jsonDecode((b['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
-      final status=(b['status']??'Sugaya jawaab').toString();
-      return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text((b['customer_name']??'Macmiil').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16)),
-        Text('Adeeg: '+(d['service']??'').toString()),
-        if((d['staffName']??'').toString().isNotEmpty)Text('Gabadha: '+d['staffName'].toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
-        Text('Taariikh: '+(d['date']??'').toString()+' • Waqti: '+(d['time']??'').toString()),
-        Text('Telefoon: '+(b['customer_phone']??'').toString()),
-        Text('Xaalad: '+status,style:const TextStyle(fontWeight:FontWeight.w600,color:green)),
-        if(status=='La aqbalay')Padding(padding:const EdgeInsets.only(top:8),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>recordIncome(b),icon:const Icon(Icons.point_of_sale),label:const Text('ADEEGGA DHAMMEE • DIIWAANGELI DAKHLIGA'),style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white)))),
-        if(status=='Sugaya jawaab')Row(children:[
-          Expanded(child:OutlinedButton(onPressed:()=>review(b,'Lama heli karo'),child:const Text('DIID'))),
-          const SizedBox(width:8),
-          Expanded(child:FilledButton(onPressed:()=>review(b,'La aqbalay'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('AQBAL')))
-        ])
-      ])));
-    }).toList())
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('BALLAMAHA SALON-KA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):Column(children:[
+      SingleChildScrollView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:10,vertical:10),child:Row(children:[
+        for(final label in ['DHAMMAAN','SUGAYA','LA AQBALAY','LA DHAMMEEYEY','LA DIIDAY'])
+          Padding(padding:const EdgeInsets.only(right:7),child:ChoiceChip(label:Text(label),selected:filter==label,onSelected:(_)=>setState(()=>filter=label)))
+      ])),
+      Expanded(child:visibleBookings.isEmpty?Center(child:Text(filter=='DHAMMAAN'?'Weli ballamo ma jiraan.':'Qaybtan wax ballamo ah kuma jiraan.')):ListView(padding:const EdgeInsets.fromLTRB(14,2,14,14),children:visibleBookings.map((b){
+        Map<String,dynamic> d={};try{d=jsonDecode((b['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+        final status=(b['status']??'Sugaya jawaab').toString();
+        return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[Expanded(child:Text((b['customer_name']??'Macmiil').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16))),Text(status,style:const TextStyle(fontWeight:FontWeight.w700,color:green))]),
+          Text('Adeeg: '+(d['service']??d['itemName']??'').toString()),
+          if((d['staffName']??'').toString().isNotEmpty)Text('Gabadha: '+d['staffName'].toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
+          Text('Taariikh: '+(d['date']??d['deliveryDate']??'').toString()+' • Waqti: '+(d['time']??d['deliveryTime']??'').toString()),
+          Text('Telefoon: '+(b['customer_phone']??'').toString()),
+          if((b['owner_reply']??'').toString().isNotEmpty)Text('Jawaab: '+b['owner_reply'].toString()),
+          if(status=='La aqbalay')Padding(padding:const EdgeInsets.only(top:8),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>recordIncome(b),icon:const Icon(Icons.point_of_sale),label:const Text('ADEEGGA DHAMMEE • DIIWAANGELI DAKHLIGA'),style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white)))),
+          if(status=='Sugaya jawaab')Row(children:[
+            Expanded(child:OutlinedButton(onPressed:()=>review(b,'Lama heli karo'),child:const Text('DIID'))),
+            const SizedBox(width:8),
+            Expanded(child:FilledButton(onPressed:()=>review(b,'La aqbalay'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('AQBAL')))
+          ])
+        ])));
+      }).toList()))
+    ])
   );
 }
 
