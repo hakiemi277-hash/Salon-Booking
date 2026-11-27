@@ -1030,7 +1030,7 @@ class _SalonServicesSheetState extends State<_SalonServicesSheet>{
       }),
       ...widget.salon.services.map((service)=>ListTile(leading:const Icon(Icons.spa_outlined,color:green),title:Text(service),trailing:const Icon(Icons.arrow_forward_ios,size:15),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:widget.salon.name,serviceName:service,whatsappNumber:widget.salon.whatsappNumber,merchantId:widget.salon.id)))))
     ]))
-  ])))));
+  ]))));
 }
 
 class ProviderDirectoryPage extends StatefulWidget {
