@@ -26,6 +26,15 @@ Future<String?> pickSalonImage() async {
   return 'data:image/jpeg;base64,${base64Encode(bytes)}';
 }
 
+
+Future<String?> pickStaffImage() async {
+  final file=await ImagePicker().pickImage(source:ImageSource.gallery,maxWidth:900,maxHeight:900,imageQuality:58);
+  if(file==null)return null;
+  final bytes=await file.readAsBytes();
+  if(bytes.length>450*1024)throw Exception('Sawirku waa inuu ka yaraadaa 450KB. Dooro sawir kale.');
+  return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+}
+
 Widget salonImage(String? source, {BoxFit fit = BoxFit.cover, Widget? fallback}) {
   final value = (source ?? '').trim();
   if (value.startsWith('data:image/') && value.contains(',')) {
@@ -171,6 +180,63 @@ class SalonApi {
     final b=jsonDecode(response.body) as Map<String,dynamic>;
     if(response.statusCode<200||response.statusCode>=300||b['ok']!=true) throw Exception(b['error']??'Package lama kaydin');
   }
+
+  static Future<List<Map<String,dynamic>>> publicMerchants(String category) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/merchants?category=${Uri.encodeQueryComponent(category)}'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Meheradaha lama soo qaadi karin');
+    return (b['merchants'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<String> createMerchant(String token,Map<String,dynamic> merchant) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/admin/merchants'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(merchant));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Meheradda lama diiwaangelin');
+    return b['id'].toString();
+  }
+  static Future<void> createOwner(String token,String merchantId,String username,String password) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/admin/owners'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'merchantId':merchantId,'username':username,'password':password}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Akoonka meheradda lama samayn');
+  }
+  static Future<void> updateStaffLimit(String token,String merchantId,int limit) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/admin/merchants/$merchantId/staff-limit'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'staffLimit':limit}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xadka shaqaalaha lama beddelin');
+  }
+  static Future<String> ownerLogin(String username,String password) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/owner/login'),headers:{'Content-Type':'application/json'},body:jsonEncode({'username':username,'password':password}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Gelitaanka meheraddu wuu fashilmay');
+    return b['token'].toString();
+  }
+  static Future<List<Map<String,dynamic>>> ownerStaff(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/owner/staff'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama soo qaadi karin');
+    return (b['staff'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<List<Map<String,dynamic>>> publicStaff(String merchantId) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/merchants/$merchantId/staff'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama soo qaadi karin');
+    return (b['staff'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> addOwnerStaff(String token,Map<String,dynamic> staff) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/owner/staff'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(staff));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama diiwaangelin');
+  }
+  static Future<void> updateOwnerStaff(String token,String id,Map<String,dynamic> staff) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/owner/staff/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(staff));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama beddelin');
+  }
+  static Future<void> deleteOwnerStaff(String token,String id) async {
+    final r=await http.delete(Uri.parse('$baseUrl/api/owner/staff/$id'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama tirtirin');
+  }
+
 }
 
 class SalonBookingApp extends StatelessWidget {
@@ -182,8 +248,9 @@ class SalonBookingApp extends StatelessWidget {
     home: const RegistrationGate());
 }
 class Salon {
-  Salon(this.name, this.location, this.services, {this.whatsappNumber = ''});
-  String name, location, whatsappNumber;
+  Salon(this.id, this.name, this.location, this.services, {this.whatsappNumber = '', this.staffLimit = 5});
+  String id, name, location, whatsappNumber;
+  int staffLimit;
   List<String> services;
 }
 
