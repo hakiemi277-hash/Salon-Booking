@@ -1533,7 +1533,7 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
     final limit=int.tryParse((data['staffLimit']??5).toString())??5;
     final activeStaff=staff.where((x)=>x['active']!=0&&x['active']!='0').toList();
     final name=(data['merchantName']??'Meheraddaada').toString();
-    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
         Text('SHAQAALAHA: '+activeStaff.length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
@@ -1547,6 +1547,50 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
         )))
       ]));
   }
+}
+
+
+class OwnerBookingsPage extends StatefulWidget {
+  const OwnerBookingsPage({super.key,required this.token});
+  final String token;
+  @override
+  State<OwnerBookingsPage> createState()=>_OwnerBookingsPageState();
+}
+class _OwnerBookingsPageState extends State<OwnerBookingsPage> {
+  List<Map<String,dynamic>> bookings=[];
+  bool loading=true;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    setState(()=>loading=true);
+    try{final rows=await SalonApi.ownerBookings(widget.token);if(mounted)setState(()=>{bookings=rows,error=null,loading=false});}
+    catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  Future<void> review(Map<String,dynamic> booking,String status) async {
+    try{await SalonApi.updateBookingStatus(widget.token,booking['id'].toString(),status);await load();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('BALLAMAHA SALON-KA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):bookings.isEmpty?const Center(child:Text('Weli ballamo ma jiraan.')):ListView(padding:const EdgeInsets.all(14),children:bookings.map((b){
+      Map<String,dynamic> d={};try{d=jsonDecode((b['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+      final status=(b['status']??'Sugaya jawaab').toString();
+      return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text((b['customer_name']??'Macmiil').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16)),
+        Text('Adeeg: '+(d['service']??'').toString()),
+        if((d['staffName']??'').toString().isNotEmpty)Text('Gabadha: '+d['staffName'].toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
+        Text('Taariikh: '+(d['date']??'').toString()+' • Waqti: '+(d['time']??'').toString()),
+        Text('Telefoon: '+(b['customer_phone']??'').toString()),
+        Text('Xaalad: '+status,style:const TextStyle(fontWeight:FontWeight.w600,color:green)),
+        if(status=='Sugaya jawaab')Row(children:[
+          Expanded(child:OutlinedButton(onPressed:()=>review(b,'Lama heli karo'),child:const Text('DIID'))),
+          const SizedBox(width:8),
+          Expanded(child:FilledButton(onPressed:()=>review(b,'La aqbalay'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('AQBAL')))
+        ])
+      ])));
+    }).toList())
+  );
 }
 
 class CustomerOrdersPage extends StatefulWidget {
