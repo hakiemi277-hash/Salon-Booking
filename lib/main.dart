@@ -48,6 +48,8 @@ class SalonApi {
     required String customerPhone,
     required String customerWhatsApp,
     required Map<String, dynamic> details,
+    String? merchantId,
+    String? packageId,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/bookings'),
@@ -57,7 +59,9 @@ class SalonApi {
         'customerName': customerName,
         'customerPhone': customerPhone,
         'customerWhatsApp': customerWhatsApp,
-        'details': details,
+        if (merchantId != null) 'merchantId': merchantId,
+        if (packageId != null) 'packageId': packageId,
+        details: details,
       }),
     );
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
@@ -67,6 +71,31 @@ class SalonApi {
     return decoded;
   }
 }
+
+
+  static Future<List<Map<String,dynamic>>> packages({String? category}) async {
+    final q=category==null?'':'?category=${Uri.encodeQueryComponent(category)}';
+    final r=await http.get(Uri.parse('$baseUrl/api/packages$q'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Full Package lama soo qaadi karin');
+    return (b['packages'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<List<Map<String,dynamic>>> adminMerchants(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/admin/merchants'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Meheradaha lama soo qaadi karin');
+    return (b['merchants'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> savePackage(String token,Map<String,dynamic> p,{bool update=false}) async {
+    final r=await http.openUrl(update?'PUT':'POST',Uri.parse('$baseUrl/api/packages'));
+    r.headers.set('Content-Type','application/json');
+    r.headers.set('Authorization','Bearer $token');
+    r.add(utf8.encode(jsonEncode(p)));
+    final response=await r.close();
+    final bodyText=await response.transform(utf8.decoder).join();
+    final b=jsonDecode(bodyText) as Map<String,dynamic>;
+    if(response.statusCode<200||response.statusCode>=300||b['ok']!=true) throw Exception(b['error']??'Package lama kaydin');
+  }
 
 
 class SalonBookingApp extends StatelessWidget {
@@ -410,6 +439,7 @@ class _HomePageState extends State<HomePage> {
     appBar: AppBar(backgroundColor: green, foregroundColor: Colors.white,
       title: const Text('SALON BOOKING', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
+        if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
         IconButton(onPressed: openAdminTools, icon: const Icon(Icons.admin_panel_settings), tooltip: 'Admin')]),
     body: ListView(padding: const EdgeInsets.all(14), children: [
       Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
@@ -435,6 +465,7 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 20),
         const Text('BALLAN QABSO — SALON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
         const SizedBox(height: 6), const Text('SALON-LADA', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8), OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'SALON'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
         const SizedBox(height: 10), ...List.generate(salons.length, salonCard),
       ],
       if (selectedSection == 1) ...[
@@ -442,18 +473,21 @@ class _HomePageState extends State<HomePage> {
         const Text('BALLAN QABSO — CAKES', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
         const SizedBox(height: 8),
         categoryDirectoryCard('CAKES', '20 meheradood oo sameeya cakes', Icons.cake_outlined, true),
+        OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'CAKES'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
       ],
       if (selectedSection == 2) ...[
         const SizedBox(height: 20),
         const Text('BALLAN QABSO — DECORATION', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
         const SizedBox(height: 8),
         categoryDirectoryCard('DECORATION', '20 meheradood oo decoration ah', Icons.celebration_outlined, false),
+        OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'DECORATION'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
       ],
       if (selectedSection == 3) ...[
         const SizedBox(height: 20),
         const Text('KIRAYSO — MARYAHA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
         const SizedBox(height: 6), const Text('DHARKA IYO AGABKA LA KIRAYSTO', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
+        OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'KIRAYSO'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
         actionCard('SAD RENTAL, TAASH, TOOBKA MEHERKA, SUBEECIYAD', 'KIRAYSO', Icons.checkroom,
           () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RentalPage()))),
       ],
@@ -1121,6 +1155,108 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
         ),
   );
 }
+
+
+class FullPackagesPage extends StatefulWidget {
+  const FullPackagesPage({super.key,this.category,this.adminToken});
+  final String? category;
+  final String? adminToken;
+  @override
+  State<FullPackagesPage> createState()=>_FullPackagesPageState();
+}
+class _FullPackagesPageState extends State<FullPackagesPage> {
+  List<Map<String,dynamic>> rows=[];
+  List<Map<String,dynamic>> merchants=[];
+  bool loading=true,saving=false;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    setState(()=>loading=true);
+    try{
+      final result=await SalonApi.packages(category:widget.category);
+      final ms=widget.adminToken==null? <Map<String,dynamic>>[]:await SalonApi.adminMerchants(widget.adminToken!);
+      if(mounted)setState(()=>{rows=result,merchants=ms,error=null,loading=false});
+    }catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  String money(dynamic v,String currency)=>'${v??0} $currency';
+  Future<void> editPackage([Map<String,dynamic>? p]) async {
+    if(widget.adminToken==null)return;
+    if(merchants.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Marka hore Admin-ku ha diiwaangeliyo meheradaha.')));return;}
+    final name=TextEditingController(text:(p?['name']??'').toString());
+    final desc=TextEditingController(text:(p?['description']??'').toString());
+    final items=TextEditingController(text:p==null?'':((jsonDecode((p['items_json']??'[]').toString()) as List).join(', ')));
+    final retail=TextEditingController(text:(p?['retail_total']??'').toString());
+    final price=TextEditingController(text:(p?['package_price']??'').toString());
+    String category=(p?['category']??widget.category??'SALON').toString();
+    String currency=(p?['currency']??'USD').toString();
+    String merchantId=(p?['merchant_id']??merchants.first['id']).toString();
+    bool active=p==null?true:(p['active']!=0&&p['active']!=false);
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:Text(p==null?'Ku dar Full Package':'Wax ka beddel Full Package'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        DropdownButtonFormField<String>(value:merchantId,decoration:const InputDecoration(labelText:'Meheradda'),items:merchants.map((m)=>DropdownMenuItem(value:m['id'].toString(),child:Text(m['name'].toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:(v)=>refresh(()=>merchantId=v??merchantId)),
+        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SALON','CAKES','DECORATION','KIRAYSO'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??'SALON')),
+        TextField(controller:name,decoration:const InputDecoration(labelText:'Magaca package-ka')),
+        TextField(controller:desc,maxLines:2,decoration:const InputDecoration(labelText:'Faahfaahin')),
+        TextField(controller:items,maxLines:3,decoration:const InputDecoration(labelText:'Waxyaabaha ku jira (comma ku kala saar)')),
+        TextField(controller:retail,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Wadarta qiimaha tafaariiqda')),
+        TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Qiimaha Full Package')),
+        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??'USD')),
+        if(p!=null)SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Package muuqda'),value:active,onChanged:(v)=>refresh(()=>active=v)),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))]
+    )));
+    if(ok!=true||!mounted)return;
+    final itemList=items.text.split(',').map((v)=>v.trim()).where((v)=>v.isNotEmpty).toList();
+    final rt=double.tryParse(retail.text.trim()),pr=double.tryParse(price.text.trim());
+    if(name.text.trim().isEmpty||itemList.isEmpty||rt==null||pr==null||pr<=0||pr>=rt){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Hubi magaca, waxyaabaha, qiimaha tafaariiqda iyo in package-ku ka jaban yahay.')));return;
+    }
+    setState(()=>saving=true);
+    try{
+      final payload=<String,dynamic>{'merchantId':merchantId,'category':category,'name':name.text.trim(),'description':desc.text.trim(),'items':itemList,'retailTotal':rt,'packagePrice':pr,'currency':currency,'active':active};
+      if(p!=null)payload['id']=p['id'];
+      await SalonApi.savePackage(widget.adminToken!,payload,update:p!=null);
+      await load();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Full Package waa la kaydiyey.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+    if(mounted)setState(()=>saving=false);
+  }
+  Future<void> orderPackage(Map<String,dynamic> p) async {
+    final prefs=await SharedPreferences.getInstance();
+    final name=prefs.getString('customer_name')??'',phone=prefs.getString('customer_phone')??'';
+    if(name.isEmpty||phone.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Marka hore isdiiwaangeli.')));return;}
+    try{
+      await SalonApi.createBooking(category:(p['category']??'SALON').toString(),customerName:name,customerPhone:phone,customerWhatsApp:prefs.getString('customer_whatsapp')??phone,merchantId:p['merchant_id']?.toString(),packageId:p['id']?.toString(),details:{'type':'FULL_PACKAGE','packageName':p['name'],'packagePrice':p['package_price'],'currency':p['currency']});
+      if(mounted)showDialog(context:context,builder:(ctx)=>AlertDialog(title:const Text('Codsiga waa la diray'),content:const Text('Codsiga Full Package waxaa loo diray meheradda. Sug jawaabta meheradda.'),actions:[FilledButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Hagaag'))]));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Diristu way fashilantay: $e')));}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text(widget.category==null?'FULL PACKAGE':'FULL PACKAGE — ${widget.category}'),backgroundColor:green,foregroundColor:Colors.white,actions:[if(widget.adminToken!=null)IconButton(onPressed:()=>editPackage(),icon:const Icon(Icons.add),tooltip:'Ku dar package')]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):rows.isEmpty?const Center(child:Text('Weli Full Package lama soo gelin.')):ListView(padding:const EdgeInsets.all(14),children:[
+      if(widget.adminToken!=null)Padding(padding:const EdgeInsets.only(bottom:10),child:Text('Admin: waxaad package u samayn kartaa meherad kasta oo ku jirta liiska.',style:TextStyle(color:green))),
+      ...rows.map((p){
+        final currency=(p['currency']??'USD').toString();
+        final rt=double.tryParse((p['retail_total']??0).toString())??0;
+        final price=double.tryParse((p['package_price']??0).toString())??0;
+        List<dynamic> itemList=[];try{itemList=jsonDecode((p['items_json']??'[]').toString()) as List;}catch(_){}
+        return Card(margin:const EdgeInsets.only(bottom:12),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[Expanded(child:Text((p['name']??'Full Package').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18))),if(widget.adminToken!=null)IconButton(onPressed:()=>editPackage(p),icon:const Icon(Icons.edit,color:green))]),
+          Text((p['merchant_name']??'Meherad').toString(),style:const TextStyle(color:green,fontWeight:FontWeight.w600)),
+          if((p['description']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:5),child:Text(p['description'].toString())),
+          if(itemList.isNotEmpty)Padding(padding:const EdgeInsets.only(top:7),child:Text('Waxyaabaha ku jira: ${itemList.join(' • ')}')),
+          const SizedBox(height:8),
+          Row(children:[Expanded(child:Text('Tafaariiq: ${money(rt,currency)}',style:const TextStyle(decoration:TextDecoration.lineThrough,color:Colors.black54))),Expanded(child:Text('Package: ${money(price,currency)}',style:const TextStyle(color:green,fontWeight:FontWeight.bold)))]),
+          Text('Waxaad kaydsanaysaa: ${money(rt-price,currency)}',style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
+          if(widget.adminToken==null)Padding(padding:const EdgeInsets.only(top:10),child:SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>orderPackage(p),style:FilledButton.styleFrom(backgroundColor:green),child:Text(p['category']=='KIRAYSO'?'KIRAYSO':'BALLAN QABSO')))),
+        ])));
+      })
+    ])
+  );
+}
+
 
 class RentalPage extends StatelessWidget {
   const RentalPage({super.key});
