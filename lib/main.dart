@@ -570,7 +570,7 @@ class _HomePageState extends State<HomePage> {
           final c=(p['category']??'').toString();
           urls[c]=(p['image_url']??'').toString();
           ids[c]=(p['id']??'').toString();
-        } else { products.add(p); }
+        } else if((p['category']??'').toString()!='HALL AROOS') { products.add(p); }
       }
       if(mounted)setState((){
         featured=products; categoryImageUrls..clear()..addAll(urls);
@@ -793,6 +793,7 @@ class _HomePageState extends State<HomePage> {
           sectionTile('CAKES', 'Dalbo cake', Icons.cake_outlined, 1),
           sectionTile('DECORATION', 'Qurxinta munaasabadaha', Icons.celebration_outlined, 2),
           sectionTile('KIRAYSO', 'SAD KIRAYSO, TAASH iyo maryo', Icons.checkroom, 3),
+          sectionTile('HALL AROOS', 'Halls-ka aroosyada', Icons.church_outlined, 4),
         ],
       ),
       if (selectedSection == 0) ...[
@@ -835,6 +836,10 @@ class _HomePageState extends State<HomePage> {
         }
         if(index==3){
           Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalPage(city:selectedCity)));
+          return;
+        }
+        if(index==4){
+          Navigator.push(context,MaterialPageRoute(builder:(_)=>HallAroosPage(adminToken:adminToken)));
           return;
         }
         setState(() => selectedSection = selectedSection == index ? -1 : index);
@@ -2011,6 +2016,85 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
         ])));
       })
     ])
+  );
+}
+
+class HallAroosPage extends StatefulWidget {
+  const HallAroosPage({super.key,this.adminToken});
+  final String? adminToken;
+  @override
+  State<HallAroosPage> createState()=>_HallAroosPageState();
+}
+class _HallAroosPageState extends State<HallAroosPage>{
+  bool loading=true;
+  String? error;
+  List<Map<String,dynamic>> halls=[];
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    if(mounted)setState(()=>{loading=true,error=null});
+    try{
+      final all=await SalonApi.featuredProducts();
+      final rows=all.where((p)=>(p['category']??'').toString()=='HALL AROOS'&&p['title']!='__CATEGORY_IMAGE__').toList();
+      if(mounted)setState(()=>{halls=rows,loading=false});
+    }catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  Future<void> manage({Map<String,dynamic>? hall}) async {
+    final token=widget.adminToken;
+    if(token==null||token.isEmpty)return;
+    final name=TextEditingController(text:(hall?['title']??'').toString());
+    final desc=TextEditingController(text:(hall?['description']??'').toString());
+    final existing=(hall?['image_url']??'').toString();
+    final url=TextEditingController(text:existing.startsWith('https://')?existing:'');
+    String? image=existing.isNotEmpty?existing:null;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:Text(hall==null?'KU DAR HALL AROOS':'WAX KA BEDDEL HALL'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:name,decoration:const InputDecoration(labelText:'Magaca Hall-ka')),
+        TextField(controller:desc,maxLines:3,decoration:const InputDecoration(labelText:'Faahfaahin / goobta (ikhtiyaari)')),
+        const SizedBox(height:10),
+        SizedBox(height:150,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(12),child:Container(color:cream,child:salonImage(image,fit:BoxFit.cover,fallback:const Icon(Icons.church_outlined,size:45,color:green))))),
+        OutlinedButton.icon(onPressed:()async{try{final v=await pickSalonImage();if(v!=null)refresh(()=>image=v);}catch(e){if(ctx.mounted)ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.photo_library),label:const Text('DOORO SAWIRKA HALL-KA')),
+        TextField(controller:url,keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'Ama geli HTTPS image URL'),onChanged:(v){if(v.trim().startsWith('https://'))refresh(()=>image=v.trim());}),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('KA NOQO')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('KAYDI'))],
+    )));
+    if(ok!=true||!mounted)return;
+    if(name.text.trim().isEmpty||image==null||image!.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Magaca Hall-ka iyo sawirkiisa waa waajib.')));return;}
+    if(!image!.startsWith('data:image/')&&!image!.startsWith('https://')){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Sawir sax ah dooro.')));return;}
+    final payload={'title':name.text.trim(),'description':desc.text.trim(),'price':'','currency':'USD','category':'HALL AROOS','imageUrl':image};
+    try{
+      if(hall==null){await SalonApi.addFeaturedProduct(token,payload);}
+      else{await SalonApi.updateFeaturedProduct(token,(hall['id']??'').toString(),payload);}
+      await load();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(hall==null?'Hall-ka waa lagu daray.':'Hall-ka waa la cusboonaysiiyey.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Kaydintu way fashilantay: $e')));}
+  }
+  Future<void> remove(Map<String,dynamic> hall) async {
+    final yes=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Tirtir Hall-kan?'),content:Text((hall['title']??'Hall').toString()),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('MAYA')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('TIRTIR'))]));
+    if(yes!=true||!mounted)return;
+    try{await SalonApi.deleteFeaturedProduct(widget.adminToken!,(hall['id']??'').toString());await load();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Tirtiriddu way fashilantay: $e')));}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('HALL AROOS'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    floatingActionButton:widget.adminToken!=null?FloatingActionButton.extended(backgroundColor:green,foregroundColor:Colors.white,onPressed:()=>manage(),icon:const Icon(Icons.add),label:const Text('KU DAR HALL')):null,
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Text(error!,textAlign:TextAlign.center),TextButton(onPressed:load,child:const Text('DIB U CUSBOONAYSII'))])):halls.isEmpty?const Center(child:Text('Weli HALL AROOS lama soo gelin.')):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(14),children:[
+      Text('HALLS-KA AROOSKA — ${halls.length}',style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),
+      const SizedBox(height:10),
+      ...halls.map((h)=>Card(clipBehavior:Clip.antiAlias,margin:const EdgeInsets.only(bottom:14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        SizedBox(width:double.infinity,height:205,child:salonImage((h['image_url']??'').toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.church_outlined,size:50,color:green)))),
+        Padding(padding:const EdgeInsets.fromLTRB(14,12,14,14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text((h['title']??'HALL AROOS').toString(),style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold,color:green)),
+          if((h['description']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:5),child:Text(h['description'].toString())),
+          if(widget.adminToken!=null)Row(mainAxisAlignment:MainAxisAlignment.end,children:[
+            TextButton.icon(onPressed:()=>manage(hall:h),icon:const Icon(Icons.edit),label:const Text('BEDDEL')),
+            TextButton.icon(onPressed:()=>remove(h),icon:const Icon(Icons.delete_outline,color:Colors.red),label:const Text('TIRTIR',style:TextStyle(color:Colors.red))),
+          ])
+        ]))
+      ])))
+    ])),
   );
 }
 
