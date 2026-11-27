@@ -786,7 +786,7 @@ class _HomePageState extends State<HomePage> {
       title: const Text('SALON BOOKING', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
         if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
-        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),
+        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'La soco lacagaha'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminStoragePage(token:adminToken!))),icon:const Icon(Icons.storage),tooltip:'Maamulka Storage-ka'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPromotionPage(token:adminToken!))),icon:const Icon(Icons.campaign),tooltip:'Xaqiiji boosaska xayeysiiska'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentSettingsPage(token:adminToken!))),icon:const Icon(Icons.settings_applications),tooltip:'Hababka lacagta iyo sarifka'),
@@ -2084,7 +2084,8 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
   }
   Future<void> pay(Map<String,dynamic> order) async {
     final sender=TextEditingController(text:(order['customer_phone']??'').toString());
-    final details=Map<String,dynamic>.from((()=>{try{return jsonDecode((order['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){return <String,dynamic>{};}})());
+    Map<String,dynamic> details={};
+    try{details=jsonDecode((order['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
     final amount=TextEditingController(text:(details['itemPrice']??details['price']??'').toString());
     final merchantId=(order['merchant_id']??'').toString();
     if(merchantId.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda dalabkan lama aqoonsan.')));return;}
@@ -2370,24 +2371,6 @@ class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
       if(mounted)setState(()=>{merchants=p,fx.text=rate?.toString()??'',loading=false,error=null});
     }catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
   }
-  Future<void> editMerchant(Map<String,dynamic> merchant) async {
-    final number=TextEditingController();
-    String provider='Telesom',currency='USD';
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
-      title:Text('Lambarka lacagta — ${merchant['name']}'),
-      content:Column(mainAxisSize:MainAxisSize.min,children:[
-        DropdownButtonFormField<String>(value:provider,decoration:const InputDecoration(labelText:'Shirkadda lacagta'),items:['Somtel','Telesom','Soltelco'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>provider=v??provider)),
-        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??currency)),
-        TextField(controller:number,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Number-ka meheraddu lacagta ku hesho')),
-      ]),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))]
-    )));
-    if(ok!=true||number.text.trim().isEmpty||!mounted)return;
-    try{
-      await SalonApi.savePaymentConfig(widget.token,merchant['id'].toString(),provider,currency,number.text.trim());
-      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Lambarka lacagta waa la kaydiyey.')));
-    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
-  }
   Future<void> editPhotoLimit(Map<String,dynamic> merchant) async {
     final c=TextEditingController(text:(merchant['photo_limit']??10).toString());
     final value=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(
@@ -2420,7 +2403,8 @@ class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
       const Text('LAMBARRADA MEHERADAHA',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
       const SizedBox(height:6),
       const Text('Meherad kasta u deji lambarkeeda Somtel, Telesom ama Soltelco; USD iyo SLSH si kala gaar ah.'),
-      ...merchants.map((m)=>Card(child:ListTile(title:Text((m['name']??'Meherad').toString()),subtitle:Text('${m['category']??''} • Sawirro: ${m['photo_limit']??10} ugu badnaan'),trailing:Wrap(children:[IconButton(tooltip:'Xadka sawirrada',onPressed:()=>editPhotoLimit(m),icon:const Icon(Icons.photo_library_outlined,color:green)),IconButton(tooltip:'Lambarrada lacagta',onPressed:()=>editMerchant(m),icon:const Icon(Icons.payments_outlined,color:green))])))),
+      const Text('Lambarrada Telesom iyo Somtel waxaa Admin-ku geliyaa marka meheradda la diiwaangelinayo. Kadibna milkiilaha meheradda ayaa xaqiijiya lacagaha.',style:TextStyle(color:Colors.black54)),
+      ...merchants.map((m)=>Card(child:ListTile(title:Text((m['name']??'Meherad').toString()),subtitle:Text('${m['category']??''} • Sawirro: ${m['photo_limit']??10} ugu badnaan'),trailing:IconButton(tooltip:'Xadka sawirrada',onPressed:()=>editPhotoLimit(m),icon:const Icon(Icons.photo_library_outlined,color:green))))),
     ])
   );
 }
