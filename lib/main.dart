@@ -133,7 +133,9 @@ class SalonApi {
   }
   static Future<Map<String,dynamic>> adminStorage(String token) async {
     final r=await http.get(Uri.parse('$baseUrl/api/admin/storage'),headers:{'Authorization':'Bearer $token'});
-    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    final decoded=jsonDecode(r.body);
+    if(decoded is! Map<String,dynamic>) throw Exception('Jawaabta server-ka ma aha JSON sax ah');
+    final b=decoded;
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Kaydka lama soo qaadi karin');
     return b;
   }
@@ -2042,7 +2044,7 @@ class _AdminStoragePageState extends State<AdminStoragePage>{
       body:loading?const Center(child:CircularProgressIndicator()):error!=null?Center(child:Padding(padding:const EdgeInsets.all(20),child:Text(error!,textAlign:TextAlign.center))):RefreshIndicator(
         onRefresh:load,child:ListView(padding:const EdgeInsets.all(14),children:[
           const Text('Kaydka xogta app-ka',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
-          metric('Cloudflare D1 — Database',sizeText(d1?['bytes']),Icons.storage),
+          metric('Cloudflare D1 — Database','${tables.length} jadwal • ${tables.fold<int>(0,(n,t)=>n+((t['count'] as num?)?.toInt()??0))} diiwaan',Icons.storage),
           metric('Cloudflare R2 — Sawirrada oo dhan','${r2?['objects']??0} sawir • ${sizeText(r2?['bytes'])}',Icons.photo_library),
           const SizedBox(height:12),
           const Text('R2 — Kala-qaybinta sawirrada',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
