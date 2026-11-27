@@ -231,8 +231,16 @@ class SalonApi {
   }
   static Future<void> createMerchantWithOwner(String token,Map<String,dynamic> data) async {
     final r=await http.post(Uri.parse('$baseUrl/api/admin/merchant-registration'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(data));
-    final b=jsonDecode(r.body) as Map<String,dynamic>;
-    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Meheradda iyo akoonkeeda lama diiwaangelin');
+    Map<String,dynamic> b;
+    try {
+      final decoded=jsonDecode(r.body);
+      if(decoded is! Map<String,dynamic>) throw const FormatException('Jawaabta server-ku ma aha JSON object.');
+      b=decoded;
+    } catch (_) {
+      final raw=r.body.trim();
+      throw Exception('Server-ka diiwaangelintu wuxuu soo celiyey jawaab aan JSON ahayn (HTTP ${r.statusCode}). Hubi Worker-ka Cloudflare. Faahfaahin: ${raw.isEmpty?'jawaab madhan':raw.substring(0,raw.length>180?180:raw.length)}');
+    }
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Meheradda iyo akoonkeeda lama diiwaangelin (HTTP ${r.statusCode})');
   }
   static Future<void> createOwner(String token,String merchantId,String username,String password) async {
     final r=await http.post(Uri.parse('$baseUrl/api/admin/owners'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'merchantId':merchantId,'username':username,'password':password}));
