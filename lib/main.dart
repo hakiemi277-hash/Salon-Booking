@@ -71,6 +71,29 @@ class SalonApi {
     return decoded;
   }
 
+  static Future<List<Map<String,dynamic>>> customerOrders(String phone) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/customer/orders?phone=${Uri.encodeQueryComponent(phone)}'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Dalabyada lama soo qaadi karin');
+    return (b['orders'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> submitPayment(String id,String customerPhone,String provider,String senderPhone,double amount,String currency) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/bookings/$id/payment'),headers:{'Content-Type':'application/json'},body:jsonEncode({'customerPhone':customerPhone,'provider':provider,'senderPhone':senderPhone,'amount':amount,'currency':currency}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xogta lacag-bixinta lama dirin');
+  }
+  static Future<List<Map<String,dynamic>>> adminPayments(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/admin/payments'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lacag-bixinnada lama soo qaadi karin');
+    return (b['payments'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> reviewPayment(String token,String id,String status) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/admin/payments/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'status':status}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xaqiijinta lacagtu way fashilantay');
+  }
+
   static Future<List<Map<String,dynamic>>> packages({String? category}) async {
     final q=category==null?'':'?category=${Uri.encodeQueryComponent(category)}';
     final r=await http.get(Uri.parse('$baseUrl/api/packages$q'));
@@ -435,6 +458,8 @@ class _HomePageState extends State<HomePage> {
       title: const Text('SALON BOOKING', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
         if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
+        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),
+        IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Dalabyadayda'),
         IconButton(onPressed: openAdminTools, icon: const Icon(Icons.admin_panel_settings), tooltip: 'Admin')]),
     body: ListView(padding: const EdgeInsets.all(14), children: [
       Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
@@ -1151,6 +1176,108 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
   );
 }
 
+
+class CustomerOrdersPage extends StatefulWidget {
+  const CustomerOrdersPage({super.key});
+  @override
+  State<CustomerOrdersPage> createState()=>_CustomerOrdersPageState();
+}
+class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
+  List<Map<String,dynamic>> orders=[];
+  bool loading=true;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    final p=await SharedPreferences.getInstance(),phone=p.getString('customer_phone')??'';
+    try{final x=await SalonApi.customerOrders(phone);if(mounted)setState(()=>{orders=x,loading=false,error=null});}
+    catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  Future<void> pay(Map<String,dynamic> order) async {
+    final sender=TextEditingController(text:(order['customer_phone']??'').toString());
+    final amount=TextEditingController();
+    String provider='Telesom',currency='USD';
+    final id=(order['id']??'').toString();
+    final p=await SharedPreferences.getInstance();
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:const Text('Xaqiiji inaad iibsatay'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        const Text('Marka hore lacagta u dir meheradda. Kadib geli lambarka aad lacagta ka dirtay iyo qadarka aad dirtay.'),
+        DropdownButtonFormField<String>(value:provider,decoration:const InputDecoration(labelText:'Habka lacagta'),items:['Somtel','Telesom','Soltelco'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>provider=v??provider)),
+        TextField(controller:sender,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Number-ka aad lacagta ka dirtay')),
+        TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lacagta aad dirtay')),
+        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta lagu diray'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??currency)),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Gudbi xaqiijin'))]
+    )));
+    if(ok!=true||!mounted)return;
+    final v=double.tryParse(amount.text.trim());
+    if(sender.text.trim().length<7||v==null||v<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Hubi lambarka iyo qadarka lacagta.')));return;}
+    try{await SalonApi.submitPayment(id,p.getString('customer_phone')??'',provider,sender.text.trim(),v,currency);await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Xogta lacagta waa la diray. Admin-ka ayaa hubinaya.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  String status(Map<String,dynamic> o)=>(o['status']??'Sugaya jawaab').toString();
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('DALABYADAYDA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):orders.isEmpty?const Center(child:Text('Weli dalab ma lihid.')):ListView(padding:const EdgeInsets.all(14),children:[
+      ...orders.map((o){
+        Map<String,dynamic> details={};try{details=jsonDecode((o['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+        final st=status(o),payment=(o['payment_status']??'').toString();
+        return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text((o['category']??'DALAB').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17,color:green)),
+          if((o['merchant_name']??'').toString().isNotEmpty)Text('Meherad: ${o['merchant_name']}'),
+          if(details.isNotEmpty)Text(details.entries.map((e)=>'${e.key}: ${e.value}').join(' • ')),
+          const SizedBox(height:5),Text('Xaaladda dalabka: $st',style:const TextStyle(fontWeight:FontWeight.w600)),
+          if(payment.isNotEmpty)Text('Xaaladda lacagta: $payment'),
+          if(st=='La aqbalay'&&payment.isEmpty)Padding(padding:const EdgeInsets.only(top:8),child:SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>pay(o),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('WAAN IIBSADAY')))),
+          if(payment=='Sugaya xaqiijin')const Text('Lacagtaada admin-ka ayaa hubinaya.',style:TextStyle(color:Colors.orange)),
+          if(st=='PURCHASED')const Text('Dalabka waa la iibsaday, lacagtiisana waa la xaqiijiyey.',style:TextStyle(color:green,fontWeight:FontWeight.bold)),
+        ])));
+      })
+    ])
+  );
+}
+
+class AdminPaymentsPage extends StatefulWidget {
+  const AdminPaymentsPage({super.key,required this.token});
+  final String token;
+  @override
+  State<AdminPaymentsPage> createState()=>_AdminPaymentsPageState();
+}
+class _AdminPaymentsPageState extends State<AdminPaymentsPage>{
+  List<Map<String,dynamic>> payments=[];
+  bool loading=true;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    try{final x=await SalonApi.adminPayments(widget.token);if(mounted)setState(()=>{payments=x,loading=false,error=null});}
+    catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  Future<void> review(Map<String,dynamic> p,String status) async {
+    try{await SalonApi.reviewPayment(widget.token,p['id'].toString(),status);await load();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('XAQIIJINTA LACAGAHA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):payments.isEmpty?const Center(child:Text('Weli lacag la xaqiijinayo ma jirto.')):ListView(padding:const EdgeInsets.all(14),children:[
+      ...payments.map((p)=>Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text((p['customer_name']??'Macmiil').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17)),
+        Text('Dalab: ${p['category']??''} • Meherad: ${p['merchant_name']??'—'}'),
+        Text('Habka: ${p['provider']} • Lacag: ${p['amount']} ${p['currency']}'),
+        Text('Lambarka lacagta laga diray: ${p['sender_phone']}'),
+        Text('Lambarka macmiilka: ${p['customer_phone']}'),
+        Text('Xaaladda: ${p['status']}'),
+        if(p['status']=='Sugaya xaqiijin')Wrap(spacing:8,children:[
+          FilledButton(onPressed:()=>review(p,'La xaqiijiyey'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('Xaqiiji lacagta')),
+          OutlinedButton(onPressed:()=>review(p,'Lama xaqiijin'),child:const Text('Diid')),
+        ]),
+      ])))
+    ])
+  );
+}
 
 class FullPackagesPage extends StatefulWidget {
   const FullPackagesPage({super.key,this.category,this.adminToken});
