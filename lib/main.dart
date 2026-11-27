@@ -223,6 +223,12 @@ class SalonApi {
     if(response.statusCode<200||response.statusCode>=300||b['ok']!=true) throw Exception(b['error']??'Package lama kaydin');
   }
 
+  static Future<List<Map<String,dynamic>>> publicAllMerchants(String city) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/merchants?city=${Uri.encodeQueryComponent(city)}'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Meheradaha lama soo qaadi karin');
+    return (b['merchants'] as List).cast<Map<String,dynamic>>();
+  }
   static Future<List<Map<String,dynamic>>> publicMerchants(String category) async {
     final r=await http.get(Uri.parse('$baseUrl/api/merchants?category=${Uri.encodeQueryComponent(category)}'));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -817,6 +823,7 @@ class _HomePageState extends State<HomePage> {
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminStoragePage(token:adminToken!))),icon:const Icon(Icons.storage),tooltip:'Maamulka Storage-ka'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPromotionPage(token:adminToken!))),icon:const Icon(Icons.campaign),tooltip:'Xaqiiji boosaska xayeysiiska'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentSettingsPage(token:adminToken!))),icon:const Icon(Icons.settings_applications),tooltip:'Hababka lacagta iyo sarifka'),
+        IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>MerchantSearchPage(city:selectedCity))),icon:const Icon(Icons.search),tooltip:'Raadi meherad'),
         IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Dalabyadayda'),
         IconButton(onPressed: openMerchantLogin, icon: const Icon(Icons.storefront), tooltip: 'Gelitaanka meheradda'),
         IconButton(onPressed: openAdminTools, icon: const Icon(Icons.admin_panel_settings), tooltip: 'Admin')]),
@@ -1006,6 +1013,120 @@ class _HomePageState extends State<HomePage> {
     const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? cream : green, foregroundColor: button == 'KIRAYSO' ? green : Colors.white), onPressed: onTap, child: Text(button)))])));
 }
 
+class MerchantSearchPage extends StatefulWidget {
+  const MerchantSearchPage({super.key,required this.city});
+  final String city;
+  @override
+  State<MerchantSearchPage> createState()=>_MerchantSearchPageState();
+}
+class _MerchantSearchPageState extends State<MerchantSearchPage>{
+  final search=TextEditingController();
+  String category='DHAMMAAN';
+  bool loading=true;
+  String? error;
+  List<Map<String,dynamic>> merchants=[];
+  @override
+  void initState(){super.initState();load();}
+  @override
+  void dispose(){search.dispose();super.dispose();}
+  Future<void> load() async {
+    setState(()=>loading=true);
+    try{
+      final rows=await SalonApi.publicAllMerchants(widget.city);
+      if(mounted)setState(()=>{merchants=rows,loading=false,error=null});
+    }catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  List<Map<String,dynamic>> get filtered {
+    final q=search.text.trim().toLowerCase();
+    return merchants.where((m){
+      final c=(m['category']??'').toString();
+      final name=(m['name']??'').toString().toLowerCase();
+      final loc=(m['location']??'').toString().toLowerCase();
+      return (category=='DHAMMAAN'||c==category)&&(q.isEmpty||name.contains(q)||loc.contains(q));
+    }).toList();
+  }
+  void openMerchant(Map<String,dynamic> m){
+    final id=(m['id']??'').toString(),name=(m['name']??'Meherad').toString();
+    final loc=(m['location']??widget.city).toString(),phone=(m['owner_whatsapp']??'').toString();
+    final c=(m['category']??'').toString();
+    if(c=='SALON'){
+      final salon=Salon(id,name,loc,['Timaha','Qurxinta wajiga','Daryeelka jirka','Ciddiyaha','Makeup','Adeegyo kale'],whatsappNumber:phone);
+      showModalBottomSheet(context:context,isScrollControlled:true,backgroundColor:Colors.white,builder:(_)=>_SalonServicesSheet(salon:salon));
+    }else if(c=='CAKES'){
+      Navigator.push(context,MaterialPageRoute(builder:(_)=>CakePage(providerName:name,whatsappNumber:phone,merchantId:id)));
+    }else if(c=='DECORATION'){
+      Navigator.push(context,MaterialPageRoute(builder:(_)=>DecorationBookingPage(providerName:name,whatsappNumber:phone,merchantId:id)));
+    }else if(c=='KIRAYSO'){
+      Navigator.push(context,MaterialPageRoute(builder:(_)=>MerchantRentalGalleryPage(merchantId:id,merchantName:name,city:loc)));
+    }
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('RAADI MEHERAD'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:Column(children:[
+      Padding(padding:const EdgeInsets.fromLTRB(14,14,14,8),child:TextField(
+        controller:search,onChanged:(_)=>setState((){}),
+        decoration:InputDecoration(prefixIcon:const Icon(Icons.search,color:green),hintText:'Geli magaca meheradda ama xaafadda',suffixIcon:search.text.isEmpty?null:IconButton(onPressed:(){search.clear();setState((){});},icon:const Icon(Icons.close)),border:OutlineInputBorder(borderRadius:BorderRadius.circular(14))))),
+      SizedBox(height:52,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:10),children:[
+        for(final c in ['DHAMMAAN','SALON','CAKES','DECORATION','KIRAYSO'])
+          Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:ChoiceChip(label:Text(c),selected:category==c,onSelected:(_)=>setState(()=>category=c)))
+      ])),
+      Expanded(child:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):filtered.isEmpty?const Center(child:Text('Meherad ku habboon raadintaada lama helin.')):ListView.builder(
+        padding:const EdgeInsets.all(12),itemCount:filtered.length,itemBuilder:(ctx,i){
+          final m=filtered[i];
+          return Card(child:ListTile(
+            leading:CircleAvatar(backgroundColor:cream,child:Icon(m['category']=='SALON'?Icons.spa:m['category']=='CAKES'?Icons.cake:m['category']=='DECORATION'?Icons.celebration:m['category']=='KIRAYSO'?Icons.checkroom:Icons.storefront,color:green)),
+            title:Text((m['name']??'Meherad').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
+            subtitle:Text('${m['category']??''} • ${m['location']??widget.city}'),
+            trailing:const Icon(Icons.arrow_forward_ios,size:16,color:green),
+            onTap:()=>openMerchant(m),
+          ));
+        }))
+    ])
+  );
+}
+
+class MerchantRentalGalleryPage extends StatefulWidget {
+  const MerchantRentalGalleryPage({super.key,required this.merchantId,required this.merchantName,required this.city});
+  final String merchantId,merchantName,city;
+  @override
+  State<MerchantRentalGalleryPage> createState()=>_MerchantRentalGalleryPageState();
+}
+class _MerchantRentalGalleryPageState extends State<MerchantRentalGalleryPage>{
+  bool loading=true;
+  String? error;
+  List<Map<String,dynamic>> items=[];
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    try{
+      final all=<Map<String,dynamic>>[];
+      for(final c in ['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD']){
+        all.addAll(await SalonApi.rentalItems(c,widget.city));
+      }
+      if(mounted)setState(()=>{items=all.where((x)=>(x['merchant_id']??'').toString()==widget.merchantId).toList(),loading=false,error=null});
+    }catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text(widget.merchantName),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):items.isEmpty?const Center(child:Text('Meheraddan wali alaab kiraysi ah laguma darin.')):GridView.builder(
+      padding:const EdgeInsets.all(12),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,childAspectRatio:.68,crossAxisSpacing:10,mainAxisSpacing:10),itemCount:items.length,
+      itemBuilder:(ctx,i){final p=items[i];return Card(clipBehavior:Clip.antiAlias,child:InkWell(
+        onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalRequestPage(category:(p['category']??'').toString(),selectedItem:(p['name']??'').toString(),merchantId:widget.merchantId,merchantName:widget.merchantName,merchantLocation:widget.city))),
+        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Expanded(child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.checkroom,color:green,size:40)))),
+          Padding(padding:const EdgeInsets.all(8),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text((p['name']??'').toString(),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold)),
+            Text('${p['price']??''} ${p['currency']??'USD'}',style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
+            Text((p['category']??'').toString(),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:11))
+          ]))
+        ])
+      ));}
+    )
+  );
+}
+
 class SalonDirectoryPage extends StatefulWidget {
   const SalonDirectoryPage({super.key, required this.city});
   final String city;
@@ -1184,9 +1305,10 @@ class _ProviderDirectoryPageState extends State<ProviderDirectoryPage> {
 }
 
 class DecorationBookingPage extends StatefulWidget {
-  const DecorationBookingPage({super.key, required this.providerName, this.whatsappNumber = ''});
+  const DecorationBookingPage({super.key, required this.providerName, this.whatsappNumber = '', this.merchantId});
   final String providerName;
   final String whatsappNumber;
+  final String? merchantId;
   @override
   State<DecorationBookingPage> createState() => _DecorationBookingPageState();
 }
@@ -1234,6 +1356,7 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
     try {
       await SalonApi.createBooking(
         category: 'DECORATION',
+        merchantId: widget.merchantId,
         customerName: customer.text.trim(),
         customerPhone: phone.text.trim(),
         customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
@@ -1293,9 +1416,10 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
 }
 
 class CakePage extends StatefulWidget {
-  const CakePage({super.key, this.providerName, this.whatsappNumber = ''});
+  const CakePage({super.key, this.providerName, this.whatsappNumber = '', this.merchantId});
   final String? providerName;
   final String whatsappNumber;
+  final String? merchantId;
   @override
   State<CakePage> createState() => _CakePageState();
 }
@@ -1376,6 +1500,7 @@ class _CakePageState extends State<CakePage> {
     try {
       await SalonApi.createBooking(
         category: 'CAKES',
+        merchantId: widget.merchantId,
         customerName: customer.text.trim(),
         customerPhone: phone.text.trim(),
         customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
