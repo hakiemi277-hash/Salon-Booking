@@ -94,6 +94,29 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xaqiijinta lacagtu way fashilantay');
   }
 
+  static Future<Map<String,dynamic>> paymentConfig(String merchantId) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/payments/config?merchantId=${Uri.encodeQueryComponent(merchantId)}'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Hababka lacagta lama soo qaadi karin');
+    return b;
+  }
+  static Future<void> savePaymentConfig(String token,String merchantId,String provider,String currency,String recipientNumber) async {
+    final r=await http.put(Uri.parse('$baseUrl/api/admin/payment-configs'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'merchantId':merchantId,'provider':provider,'currency':currency,'recipientNumber':recipientNumber}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lambarka lacagta lama kaydin');
+  }
+  static Future<double?> exchangeRate() async {
+    final r=await http.get(Uri.parse('$baseUrl/api/settings/fx'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception('Sarifka lama soo qaadi karin');
+    return (b['slshPerUsd'] as num?)?.toDouble();
+  }
+  static Future<void> saveExchangeRate(String token,double rate) async {
+    final r=await http.put(Uri.parse('$baseUrl/api/admin/settings/fx'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'slshPerUsd':rate}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Sarifka lama kaydin');
+  }
+
   static Future<List<Map<String,dynamic>>> packages({String? category}) async {
     final q=category==null?'':'?category=${Uri.encodeQueryComponent(category)}';
     final r=await http.get(Uri.parse('$baseUrl/api/packages$q'));
@@ -459,6 +482,7 @@ class _HomePageState extends State<HomePage> {
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
         if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),
+        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentSettingsPage(token:adminToken!))),icon:const Icon(Icons.settings_applications),tooltip:'Hababka lacagta iyo sarifka'),
         IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Dalabyadayda'),
         IconButton(onPressed: openAdminTools, icon: const Icon(Icons.admin_panel_settings), tooltip: 'Admin')]),
     body: ListView(padding: const EdgeInsets.all(14), children: [
@@ -1275,6 +1299,70 @@ class _AdminPaymentsPageState extends State<AdminPaymentsPage>{
           OutlinedButton(onPressed:()=>review(p,'Lama xaqiijin'),child:const Text('Diid')),
         ]),
       ])))),
+    ])
+  );
+}
+
+class AdminPaymentSettingsPage extends StatefulWidget {
+  const AdminPaymentSettingsPage({super.key,required this.token});
+  final String token;
+  @override
+  State<AdminPaymentSettingsPage> createState()=>_AdminPaymentSettingsPageState();
+}
+class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
+  List<Map<String,dynamic>> merchants=[];
+  bool loading=true;
+  String? error;
+  final fx=TextEditingController();
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    try{
+      final p=await SalonApi.adminMerchants(widget.token);
+      final rate=await SalonApi.exchangeRate();
+      if(mounted)setState(()=>{merchants=p,fx.text=rate?.toString()??'',loading=false,error=null});
+    }catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  Future<void> editMerchant(Map<String,dynamic> merchant) async {
+    final number=TextEditingController();
+    String provider='Telesom',currency='USD';
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:Text('Lambarka lacagta — ${merchant['name']}'),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        DropdownButtonFormField<String>(value:provider,decoration:const InputDecoration(labelText:'Shirkadda lacagta'),items:['Somtel','Telesom','Soltelco'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>provider=v??provider)),
+        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??currency)),
+        TextField(controller:number,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Number-ka meheraddu lacagta ku hesho')),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))]
+    )));
+    if(ok!=true||number.text.trim().isEmpty||!mounted)return;
+    try{
+      await SalonApi.savePaymentConfig(widget.token,merchant['id'].toString(),provider,currency,number.text.trim());
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Lambarka lacagta waa la kaydiyey.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  Future<void> saveFx() async {
+    final v=double.tryParse(fx.text.trim());
+    if(v==null||v<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Geli sarif sax ah.')));return;}
+    try{await SalonApi.saveExchangeRate(widget.token,v);if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Sarifka maanta waa la kaydiyey.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  @override
+  void dispose(){fx.dispose();super.dispose();}
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('HABABKA LACAGTA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
+      const Text('SARIFKA MAANTA',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
+      const SizedBox(height:8),
+      TextField(controller:fx,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'1 USD = imisa SLSH?',border:OutlineInputBorder())),
+      const SizedBox(height:8),
+      FilledButton(onPressed:saveFx,style:FilledButton.styleFrom(backgroundColor:green),child:const Text('KAYDI SARIFKA')),
+      const Divider(height:28),
+      const Text('LAMBARRADA MEHERADAHA',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
+      const SizedBox(height:6),
+      const Text('Meherad kasta u deji lambarkeeda Somtel, Telesom ama Soltelco; USD iyo SLSH si kala gaar ah.'),
+      ...merchants.map((m)=>Card(child:ListTile(title:Text((m['name']??'Meherad').toString()),subtitle:Text((m['category']??'').toString()),trailing:const Icon(Icons.edit,color:green),onTap:()=>editMerchant(m)))),
     ])
   );
 }
