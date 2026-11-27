@@ -214,6 +214,33 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Gelitaanka meheraddu wuu fashilmay');
     return b['token'].toString();
   }
+
+  static Future<List<Map<String,dynamic>>> rentalItems(String category,String city) async {
+    final q='?category=${Uri.encodeQueryComponent(category)}&city=${Uri.encodeQueryComponent(city)}';
+    final r=await http.get(Uri.parse('$baseUrl/api/rentals$q'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Sawirada alaabta lama soo qaadi karin');
+    return (b['items'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<List<Map<String,dynamic>>> ownerRentals(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/owner/rentals'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Alaabta lama soo qaadi karin');
+    return (b['items'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> saveOwnerRental(String token,Map<String,dynamic> item,{String? id}) async {
+    final headers={'Content-Type':'application/json','Authorization':'Bearer $token'};
+    final uri=Uri.parse(id==null?'$baseUrl/api/owner/rentals':'$baseUrl/api/owner/rentals/$id');
+    final r=id==null?await http.post(uri,headers:headers,body:jsonEncode(item)):await http.patch(uri,headers:headers,body:jsonEncode(item));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if((r.statusCode!=200&&r.statusCode!=201)||b['ok']!=true) throw Exception(b['error']??'Alaabta lama kaydin');
+  }
+  static Future<void> deleteOwnerRental(String token,String id) async {
+    final r=await http.delete(Uri.parse('$baseUrl/api/owner/rentals/$id'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Alaabta lama tirtirin');
+  }
+
   static Future<Map<String,dynamic>> ownerStaff(String token) async {
     final r=await http.get(Uri.parse('$baseUrl/api/owner/staff'),headers:{'Authorization':'Bearer $token'});
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -733,15 +760,6 @@ class _HomePageState extends State<HomePage> {
         categoryDirectoryCard('DECORATION', '20 meheradood oo decoration ah', Icons.celebration_outlined, false),
         OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'DECORATION'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
       ],
-      if (selectedSection == 3) ...[
-        const SizedBox(height: 20),
-        const Text('KIRAYSO — MARYAHA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
-        const SizedBox(height: 6), const Text('DHARKA IYO AGABKA LA KIRAYSTO', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'KIRAYSO'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
-        actionCard('SAD RENTAL, TAASH, TOOBKA MEHERKA, SUBEECIYAD', 'KIRAYSO', Icons.checkroom,
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => RentalPage(city:selectedCity)))),
-      ],
       if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN: Meheradaha, shaqaalaha iyo xadkooda waxaa lagu kaydiyaa server-ka.', style: TextStyle(color: green, fontSize: 12))),
     ]));
   Widget sectionTile(String title, String subtitle, IconData icon, int index) {
@@ -750,6 +768,10 @@ class _HomePageState extends State<HomePage> {
       onTap: () {
         if (index == 2) {
           Navigator.push(context, MaterialPageRoute(builder: (_) => ProviderDirectoryPage(title: 'DECORATION', isCake: false, city:selectedCity)));
+          return;
+        }
+        if(index==3){
+          Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalPage(city:selectedCity)));
           return;
         }
         setState(() => selectedSection = selectedSection == index ? -1 : index);
@@ -1546,7 +1568,7 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
     final limit=int.tryParse((data['staffLimit']??5).toString())??5;
     final activeStaff=staff.where((x)=>x['active']!=0&&x['active']!='0').toList();
     final name=(data['merchantName']??'Meheraddaada').toString();
-    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
         Text('SHAQAALAHA: '+activeStaff.length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
@@ -1560,6 +1582,66 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
         )))
       ]));
   }
+}
+
+
+
+class OwnerRentalPage extends StatefulWidget {
+  const OwnerRentalPage({super.key,required this.token});
+  final String token;
+  @override
+  State<OwnerRentalPage> createState()=>_OwnerRentalPageState();
+}
+class _OwnerRentalPageState extends State<OwnerRentalPage> {
+  List<Map<String,dynamic>> items=[];
+  bool loading=true;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    setState(()=>loading=true);
+    try{final rows=await SalonApi.ownerRentals(widget.token);if(mounted)setState(()=>{items=rows.where((x)=>x['active']!=0&&x['active']!='0').toList(),loading=false});}
+    catch(e){if(mounted){setState(()=>loading=false);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
+  }
+  Future<void> edit([Map<String,dynamic>? p]) async {
+    final name=TextEditingController(text:(p?['name']??'').toString());
+    final desc=TextEditingController(text:(p?['description']??'').toString());
+    String category=(p?['category']??'SAD RENTAL').toString();
+    String? photo;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:Text(p==null?'Ku dar alaab kiraysi':'Wax ka beddel alaabta'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??category)),
+        TextField(controller:name,decoration:const InputDecoration(labelText:'Magaca alaabta')),
+        TextField(controller:desc,maxLines:3,decoration:const InputDecoration(labelText:'Faahfaahin (ikhtiyaari)')),
+        const SizedBox(height:8),
+        OutlinedButton.icon(onPressed:()async{try{final v=await pickSalonImage();if(v!=null)refresh(()=>photo=v);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.photo_library),label:Text(photo==null?'Dooro sawirka alaabta':'Sawirka waa la doortay')),
+        if(photo!=null)Image.memory(base64Decode(photo!.split(',').last),height:120,fit:BoxFit.cover)
+        else if(p!=null)Image.network((p['photoUrl']??'').toString(),height:120,errorBuilder:(_,__,___)=>const Icon(Icons.image_not_supported)),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))]
+    )));
+    if(ok!=true||!mounted)return;
+    if(name.text.trim().isEmpty||(p==null&&photo==null)){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Magaca iyo sawirka alaabta geli.')));return;}
+    try{
+      await SalonApi.saveOwnerRental(widget.token,{'category':category,'name':name.text.trim(),'description':desc.text.trim(),if(photo!=null)'photoData':photo},id:p?['id']?.toString());
+      await load();
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  Future<void> remove(Map<String,dynamic> p) async {
+    try{await SalonApi.deleteOwnerRental(widget.token,p['id'].toString());await load();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('ALAABTA KIRADA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.add),label:const Text('KU DAR ALAAB')),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):items.isEmpty?const Center(child:Text('Weli alaab kiraysi lama gelin.')):ListView(padding:const EdgeInsets.all(14),children:items.map((p)=>Card(child:ListTile(
+      leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:const Icon(Icons.image,color:green))),
+      title:Text((p['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
+      subtitle:Text((p['category']??'').toString()),
+      trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);if(v=='delete')remove(p);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('Wax ka beddel')),PopupMenuItem(value:'delete',child:Text('Ka saar'))])
+    ))).toList())
+  );
 }
 
 
@@ -1873,30 +1955,66 @@ class _FullPackagesPageState extends State<FullPackagesPage> {
 }
 
 
+
 class RentalPage extends StatelessWidget {
   const RentalPage({super.key, required this.city});
   final String city;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('KIRAYSO'), backgroundColor: green, foregroundColor: Colors.white),
-    body: ListView(padding: const EdgeInsets.all(18), children: [
+    appBar:AppBar(title:const Text('KIRAYSO'),backgroundColor:green,foregroundColor:Colors.white),
+    body:ListView(padding:const EdgeInsets.all(18),children:[
       Text('Magaalada: $city',style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
-      const Text('Qaybta kiraynta', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: green)),
-      const SizedBox(height: 6),
-      const Text('Dooro qaybta aad rabto, kadib buuxi codsiga kiraysiga.'),
-      const SizedBox(height: 12),
-      ...['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v) => Card(
-        margin: const EdgeInsets.only(bottom: 10),
-        child: ListTile(
-          contentPadding: const EdgeInsets.all(14),
-          leading: const CircleAvatar(backgroundColor: cream, child: Icon(Icons.checkroom, color: green)),
-          title: Text(v, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: const Text('Gudbi codsiga kiraysiga'),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RentalRequestPage(category: v))),
-        ),
-      )),
-    ]),
+      const Text('Qaybta kiraynta',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold,color:green)),
+      const SizedBox(height:6),
+      const Text('Dooro qaybta aad rabto, kadib halkan ka eeg sawirada alaabta.'),
+      const SizedBox(height:12),
+      ...['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v)=>Card(
+        margin:const EdgeInsets.only(bottom:10),
+        child:ListTile(contentPadding:const EdgeInsets.all(14),
+          leading:const CircleAvatar(backgroundColor:cream,child:Icon(Icons.checkroom,color:green)),
+          title:Text(v,style:const TextStyle(fontWeight:FontWeight.bold)),
+          subtitle:const Text('Halkan ka eeg sawirada alaabta'),
+          trailing:const Icon(Icons.arrow_forward_ios,size:16),
+          onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalGalleryPage(category:v,city:city))),
+        )))
+    ])
+  );
+}
+
+class RentalGalleryPage extends StatefulWidget {
+  const RentalGalleryPage({super.key,required this.category,required this.city});
+  final String category,city;
+  @override
+  State<RentalGalleryPage> createState()=>_RentalGalleryPageState();
+}
+class _RentalGalleryPageState extends State<RentalGalleryPage> {
+  List<Map<String,dynamic>> items=[];
+  bool loading=true;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    try{final rows=await SalonApi.rentalItems(widget.category,widget.city);if(mounted)setState(()=>{items=rows,loading=false,error=null});}
+    catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text(widget.category),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):items.isEmpty?const Center(child:Text('Weli sawirro alaab ah laguma darin qaybtan magaalada.')):GridView.builder(
+      padding:const EdgeInsets.all(12),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,childAspectRatio:.68,crossAxisSpacing:10,mainAxisSpacing:10),itemCount:items.length,
+      itemBuilder:(ctx,i){final p=items[i];return Card(clipBehavior:Clip.antiAlias,child:InkWell(
+        onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalRequestPage(category:widget.category,selectedItem:(p['name']??'').toString(),merchantId:(p['merchant_id']??'').toString(),merchantName:(p['merchant_name']??'').toString(),merchantLocation:(p['location']??'').toString()))),
+        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Expanded(child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.checkroom,color:green,size:42)))),
+          Padding(padding:const EdgeInsets.all(9),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text((p['name']??'').toString(),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold)),
+            Text((p['merchant_name']??'Meherad').toString(),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:green,fontSize:12)),
+            Row(children:[const Icon(Icons.location_on,size:13,color:green),Expanded(child:Text((p['location']??widget.city).toString(),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:11)))]),
+            const SizedBox(height:4),const Text('Taabo sawirka si aad u codsato',style:TextStyle(color:green,fontSize:10,fontWeight:FontWeight.w600))
+          ]))
+        ])
+      ));}
+    )
   );
 }
 
@@ -1977,7 +2095,7 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
         customerName: customer.text.trim(),
         customerPhone: phone.text.trim(),
         customerWhatsApp: p.getString('customer_whatsapp') ?? phone.text.trim(),
-        details: {'rentalCategory': widget.category, 'item': item.text.trim(), 'size': size.text.trim(),
+        details: {'rentalCategory': widget.category, 'item': item.text.trim(), 'merchantName':widget.merchantName, 'merchantLocation':widget.merchantLocation, 'size': size.text.trim(),
           'startDate': startDate!.toIso8601String().split('T').first,
           'endDate': endDate!.toIso8601String().split('T').first,
           'location': location.text.trim(), 'notes': notes.text.trim()},
@@ -2015,7 +2133,7 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('KIRAYSO — ' + widget.category), backgroundColor: green, foregroundColor: Colors.white),
+    appBar: AppBar(title: Text('Gudbi codsiga'), backgroundColor: green, foregroundColor: Colors.white),
     body: loading ? const Center(child: CircularProgressIndicator(color: green)) :
       ListView(padding: const EdgeInsets.all(18), children: [
         Text(widget.category, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: green)),
