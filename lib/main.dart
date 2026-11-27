@@ -553,7 +553,7 @@ class _HomePageState extends State<HomePage> {
     return InkWell(
       onTap: () {
         if (index == 2) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const ProviderDirectoryPage(title: 'DECORATION', isCake: false, city:selectedCity)));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ProviderDirectoryPage(title: 'DECORATION', isCake: false, city:selectedCity)));
           return;
         }
         setState(() => selectedSection = selectedSection == index ? -1 : index);
