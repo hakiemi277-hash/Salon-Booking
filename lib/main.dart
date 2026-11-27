@@ -7,7 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(const SalonBookingApp());
-const green = Color(0xFF173F35);
+const green = Color(0xFF850000);
+const cream = Color(0xFFF6F5F0);
 const pink = Color(0xFFF7C8D8);
 
 Future<String?> pickSalonImage() async {
@@ -177,7 +178,7 @@ class SalonBookingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false, title: 'SALON BOOKING',
-    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: green), scaffoldBackgroundColor: pink),
+    theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: green), scaffoldBackgroundColor: cream),
     home: const RegistrationGate());
 }
 class Salon {
@@ -392,7 +393,7 @@ class _HomePageState extends State<HomePage> {
     final url=await showDialog<String>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
       title:Text('Sawirka $category'),
       content:Column(mainAxisSize:MainAxisSize.min,children:[
-        SizedBox(height:130,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(12),child:Container(color:pink,child:salonImage(selectedImage,fit:BoxFit.cover,fallback:const Icon(Icons.image,size:42,color:green))))),
+        SizedBox(height:130,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(12),child:Container(color:cream,child:salonImage(selectedImage,fit:BoxFit.cover,fallback:const Icon(Icons.image,size:42,color:green))))),
         const SizedBox(height:10),
         OutlinedButton.icon(onPressed:() async {try{final picked=await pickSalonImage();if(picked!=null)refresh(()=>selectedImage=picked);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.photo_library),label:const Text('KA DOORO GALLERY-GA')),
         TextField(controller:urlController,keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'Ama geli HTTPS URL (ikhtiyaari)',hintText:'https://...'),onChanged:(v){if(v.trim().startsWith('https://'))refresh(()=>selectedImage=v.trim());}),
@@ -438,7 +439,7 @@ class _HomePageState extends State<HomePage> {
         TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Qiimaha (ikhtiyaari)')),
         DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SALON','CAKES','DECORATION','KIRAYSO'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??'SALON')),
         DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??'USD')),
-        SizedBox(height:120,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(color:pink,child:salonImage(selectedImage,fit:BoxFit.cover,fallback:const Icon(Icons.image,size:40,color:green))))),
+        SizedBox(height:120,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(color:cream,child:salonImage(selectedImage,fit:BoxFit.cover,fallback:const Icon(Icons.image,size:40,color:green))))),
         OutlinedButton.icon(onPressed:() async {try{final picked=await pickSalonImage();if(picked!=null)refresh(()=>selectedImage=picked);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.photo_library),label:const Text('KA DOORO GALLERY-GA')),
         TextField(controller:img,decoration:const InputDecoration(labelText:'Ama geli HTTPS URL (ikhtiyaari)'),onChanged:(v){if(v.trim().startsWith('https://'))refresh(()=>selectedImage=v.trim());}),
       ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))])));
@@ -464,7 +465,7 @@ class _HomePageState extends State<HomePage> {
         TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Qiimaha')),
         DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SALON','CAKES','DECORATION','KIRAYSO'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??'SALON')),
         DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??'USD')),
-        SizedBox(height:120,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(color:pink,child:salonImage(selectedImage,fit:BoxFit.cover,fallback:const Icon(Icons.image,size:40,color:green))))),
+        SizedBox(height:120,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(color:cream,child:salonImage(selectedImage,fit:BoxFit.cover,fallback:const Icon(Icons.image,size:40,color:green))))),
         OutlinedButton.icon(onPressed:() async {try{final picked=await pickSalonImage();if(picked!=null)refresh(()=>selectedImage=picked);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.photo_library),label:const Text('KA DOORO GALLERY-GA')),
         TextField(controller:img,decoration:const InputDecoration(labelText:'Ama geli HTTPS URL (ikhtiyaari)'),onChanged:(v){if(v.trim().startsWith('https://'))refresh(()=>selectedImage=v.trim());}),
       ])),
@@ -490,7 +491,7 @@ class _HomePageState extends State<HomePage> {
       if(featured.isEmpty)const Text('Weli alaab cusub lama soo bandhigin.'),
       if(featured.isNotEmpty)SizedBox(height:180,child:PageView.builder(controller:featuredController,itemCount:featured.length,onPageChanged:(i)=>featuredPage=i,itemBuilder:(ctx,i){
         final p=featured[i];return Padding(padding:const EdgeInsets.only(right:10),child:Card(clipBehavior:Clip.antiAlias,child:Row(children:[
-          SizedBox(width:112,height:180,child:(p['image_url']??'').toString().isNotEmpty?salonImage(p['image_url'].toString(),fit:BoxFit.cover,fallback:Container(color:pink,child:const Icon(Icons.shopping_bag,color:green,size:36))):Container(color:pink,child:const Icon(Icons.shopping_bag,color:green,size:36))),
+          SizedBox(width:112,height:180,child:(p['image_url']??'').toString().isNotEmpty?salonImage(p['image_url'].toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.shopping_bag,color:green,size:36))):Container(color:cream,child:const Icon(Icons.shopping_bag,color:green,size:36))),
           Expanded(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.center,children:[
             Text(p['title']??'',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:15)),
             Text(p['category']??'',style:const TextStyle(color:green,fontSize:11)),
@@ -612,7 +613,7 @@ class _HomePageState extends State<HomePage> {
           BoxShadow(color:green.withOpacity(.08),blurRadius:7,offset:const Offset(0,3))]),
         child:Stack(fit:StackFit.expand,children:[
           if(imageUrl!=null&&imageUrl.isNotEmpty) salonImage(imageUrl,fit:BoxFit.cover,
-            fallback:Container(color:pink,child:Icon(icon,color:green,size:42))),
+            fallback:Container(color:cream,child:Icon(icon,color:green,size:42))),
           if(imageUrl==null||imageUrl.isEmpty) Container(color:Colors.white),
           Container(decoration:BoxDecoration(gradient:LinearGradient(
             begin:Alignment.topCenter,end:Alignment.bottomCenter,
@@ -621,7 +622,7 @@ class _HomePageState extends State<HomePage> {
               : [Colors.white,Colors.white]))),
           Column(mainAxisAlignment:MainAxisAlignment.center,children:[
             if(imageUrl==null||imageUrl.isEmpty) Container(width:58,height:58,
-              decoration:BoxDecoration(color:pink,borderRadius:BorderRadius.circular(16)),
+              decoration:BoxDecoration(color:cream,borderRadius:BorderRadius.circular(16)),
               child:Icon(icon,color:green,size:32)),
             if(imageUrl!=null&&imageUrl.isNotEmpty) const SizedBox(height:8),
             const SizedBox(height:10),
@@ -648,7 +649,7 @@ class _HomePageState extends State<HomePage> {
     final s = salons[i]; final isOpen = opened == i;
     return Card(margin: const EdgeInsets.only(bottom: 11), clipBehavior: Clip.antiAlias, child: Column(children: [
       InkWell(onTap: () => setState(() => opened = isOpen ? -1 : i), child: Row(children: [
-        Container(width: 98, height: 88, color: pink, child: const Icon(Icons.storefront, color: green, size: 42)),
+        Container(width: 98, height: 88, color: cream, child: const Icon(Icons.storefront, color: green, size: 42)),
         Expanded(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 4),
           Row(children: [const Icon(Icons.location_on, size: 15, color: green), Text(s.location)]),
@@ -683,7 +684,7 @@ class _HomePageState extends State<HomePage> {
       onTap: () => Navigator.push(context, MaterialPageRoute(
         builder: (_) => ProviderDirectoryPage(title: title, isCake: isCake, city:selectedCity))),
       child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
-        Container(width: 58, height: 58, decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(14)),
+        Container(width: 58, height: 58, decoration: BoxDecoration(color: cream, borderRadius: BorderRadius.circular(14)),
           child: Icon(icon, color: green, size: 32)),
         const SizedBox(width: 13),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -698,7 +699,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget actionCard(String title, String button, IconData icon, VoidCallback onTap) => Card(child: Padding(padding: const EdgeInsets.all(13), child: Column(children: [
     Icon(icon, color: green, size: 34), const SizedBox(height: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-    const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? pink : green, foregroundColor: button == 'KIRAYSO' ? green : Colors.white), onPressed: onTap, child: Text(button)))])));
+    const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? cream : green, foregroundColor: button == 'KIRAYSO' ? green : Colors.white), onPressed: onTap, child: Text(button)))])));
 }
 
 class ProviderDirectoryPage extends StatefulWidget {
@@ -1050,7 +1051,7 @@ class _CakePageState extends State<CakePage> {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: cream, borderRadius: BorderRadius.circular(16)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('DALABKA CAKE-KA', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
                 if (widget.providerName != null) ...[
@@ -1238,7 +1239,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: cream, borderRadius: BorderRadius.circular(16)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(widget.salonName, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
                 const SizedBox(height: 5),
@@ -1562,7 +1563,7 @@ class RentalPage extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         child: ListTile(
           contentPadding: const EdgeInsets.all(14),
-          leading: const CircleAvatar(backgroundColor: pink, child: Icon(Icons.checkroom, color: green)),
+          leading: const CircleAvatar(backgroundColor: cream, child: Icon(Icons.checkroom, color: green)),
           title: Text(v, style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: const Text('Gudbi codsiga kiraysiga'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
