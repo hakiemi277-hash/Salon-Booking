@@ -221,11 +221,10 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Meheradaha lama soo qaadi karin');
     return (b['merchants'] as List).cast<Map<String,dynamic>>();
   }
-  static Future<String> createMerchant(String token,Map<String,dynamic> merchant) async {
-    final r=await http.post(Uri.parse('$baseUrl/api/admin/merchants'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(merchant));
+  static Future<void> createMerchantWithOwner(String token,Map<String,dynamic> data) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/admin/merchant-registration'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(data));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
-    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Meheradda lama diiwaangelin');
-    return b['id'].toString();
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Meheradda iyo akoonkeeda lama diiwaangelin');
   }
   static Future<void> createOwner(String token,String merchantId,String username,String password) async {
     final r=await http.post(Uri.parse('$baseUrl/api/admin/owners'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'merchantId':merchantId,'username':username,'password':password}));
@@ -715,8 +714,7 @@ class _HomePageState extends State<HomePage> {
     final password=await ask('Password-ka meheradda','Ugu yaraan 10 xaraf');
     if(password==null||password.length<10||!mounted)return;
     try {
-      final id=await SalonApi.createMerchant(adminToken!,{'category':'SALON','name':n.trim(),'location':l??'Hargeysa','ownerWhatsApp':w??''});
-      await SalonApi.createOwner(adminToken!,id,username.trim(),password);
+      await SalonApi.createMerchantWithOwner(adminToken!,{'category':'SALON','name':n.trim(),'location':(l??'Hargeysa').trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password});
       await loadSalons();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda iyo akoonkeeda waa la diiwaangeliyey.')));
     } catch(e) {
