@@ -1538,7 +1538,7 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
         Text('SHAQAALAHA: '+activeStaff.length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
         const SizedBox(height:8),
-        if(staff.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Weli gabdho shaqaale ah lama diiwaangelin.')),
+        if(activeStaff.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Weli gabdho shaqaale ah lama diiwaangelin.')),
         ...activeStaff.map((p)=>Card(child:ListTile(
           leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:const Icon(Icons.person,color:green))),
           title:Text((p['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
