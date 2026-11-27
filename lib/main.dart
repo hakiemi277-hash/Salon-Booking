@@ -810,6 +810,10 @@ class _HomePageState extends State<HomePage> {
     final imageUrl=categoryImageUrls[title];
     return InkWell(
       onTap: () {
+        if (index == 0) {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => SalonDirectoryPage(city:selectedCity)));
+          return;
+        }
         if (index == 2) {
           Navigator.push(context, MaterialPageRoute(builder: (_) => ProviderDirectoryPage(title: 'DECORATION', isCake: false, city:selectedCity)));
           return;
@@ -934,6 +938,69 @@ class _HomePageState extends State<HomePage> {
   Widget actionCard(String title, String button, IconData icon, VoidCallback onTap) => Card(child: Padding(padding: const EdgeInsets.all(13), child: Column(children: [
     Icon(icon, color: green, size: 34), const SizedBox(height: 7), Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
     const SizedBox(height: 9), SizedBox(width: double.infinity, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: button == 'KIRAYSO' ? cream : green, foregroundColor: button == 'KIRAYSO' ? green : Colors.white), onPressed: onTap, child: Text(button)))])));
+}
+
+class SalonDirectoryPage extends StatefulWidget {
+  const SalonDirectoryPage({super.key, required this.city});
+  final String city;
+  @override
+  State<SalonDirectoryPage> createState() => _SalonDirectoryPageState();
+}
+
+class _SalonDirectoryPageState extends State<SalonDirectoryPage> {
+  bool loading=true;
+  String? error;
+  List<Salon> salons=[];
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    try {
+      final rows=await SalonApi.publicMerchants('SALON');
+      final list=rows.map((m)=>Salon(m['id'].toString(),(m['name']??'Salon').toString(),(m['location']??'Hargeysa').toString(),['Timaha','Qurxinta wajiga','Daryeelka jirka','Ciddiyaha','Makeup','Adeegyo kale'],whatsappNumber:(m['owner_whatsapp']??'').toString(),staffLimit:int.tryParse((m['staff_limit']??5).toString())??5)).where((s)=>s.location.trim().toLowerCase()==widget.city.trim().toLowerCase()).toList();
+      if(mounted)setState(()=>{salons=list,loading=false,error=null});
+    } catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  Future<void> openSalon(Salon salon) async {
+    showModalBottomSheet(context:context,isScrollControlled:true,backgroundColor:Colors.white,builder:(ctx)=>_SalonServicesSheet(salon:salon));
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text('SALON-LADA — ${widget.city}'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):salons.isEmpty?Center(child:Text('Magaalada ${widget.city} weli lagama diiwaangelin meherado salon ah.',textAlign:TextAlign.center)):GridView.builder(
+      padding:const EdgeInsets.all(14),itemCount:salons.length,gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:.9),
+      itemBuilder:(context,i){final s=salons[i];return Card(clipBehavior:Clip.antiAlias,margin:EdgeInsets.zero,child:InkWell(onTap:()=>openSalon(s),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+        Expanded(child:Container(color:cream,child:const Center(child:Icon(Icons.storefront,color:green,size:48)))),
+        Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(s.name,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:15,color:green)),
+          const SizedBox(height:4),Row(children:[const Icon(Icons.location_on,size:14,color:green),Expanded(child:Text(s.location,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:12,color:Colors.black54)))]),
+          const SizedBox(height:6),const Text('Eeg adeegyada  →',style:TextStyle(color:green,fontSize:12,fontWeight:FontWeight.w600))
+        ]))
+      ])));}));
+}
+
+class _SalonServicesSheet extends StatefulWidget {
+  const _SalonServicesSheet({required this.salon});
+  final Salon salon;
+  @override
+  State<_SalonServicesSheet> createState()=>_SalonServicesSheetState();
+}
+class _SalonServicesSheetState extends State<_SalonServicesSheet>{
+  bool loading=true;
+  List<Map<String,dynamic>> staff=[];
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {try{final rows=await SalonApi.publicStaff(widget.salon.id);if(mounted)setState(()=>{staff=rows,loading=false});}catch(_){if(mounted)setState(()=>loading=false);}}
+  @override
+  Widget build(BuildContext context)=>SafeArea(child:Padding(padding:EdgeInsets.only(left:16,right:16,top:16,bottom:MediaQuery.of(context).viewInsets.bottom+16),child:SizedBox(height:MediaQuery.of(context).size.height*.72,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Text(widget.salon.name,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold,color:green)),
+    Text(widget.salon.location,style:const TextStyle(color:Colors.black54)),
+    const SizedBox(height:12),const Text('ADEEGYADA SALON-KA',style:TextStyle(fontWeight:FontWeight.bold)),
+    const SizedBox(height:8),Expanded(child:loading?const Center(child:CircularProgressIndicator(color:green)):ListView(children:[
+      if(staff.isEmpty)const Padding(padding:EdgeInsets.all(10),child:Text('Meheraddan wali ma diiwaangelin hablaha shaqeeya.')),
+      ...staff.map((person){List<dynamic> services=[];try{services=jsonDecode((person['services_json']??'[]').toString()) as List;}catch(_){}return Card(child:ListTile(leading:const CircleAvatar(backgroundColor:cream,child:Icon(Icons.person,color:green)),title:Text((person['name']??'').toString()),subtitle:Text(services.join(', ')),trailing:const Icon(Icons.arrow_forward_ios,size:15),onTap:services.isEmpty?null:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:widget.salon.name,serviceName:services.first.toString(),whatsappNumber:widget.salon.whatsappNumber,merchantId:widget.salon.id,staffId:person['id'].toString(),staffName:person['name'].toString()))));}),
+      ...widget.salon.services.map((service)=>ListTile(leading:const Icon(Icons.spa_outlined,color:green),title:Text(service),trailing:const Icon(Icons.arrow_forward_ios,size:15),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:widget.salon.name,serviceName:service,whatsappNumber:widget.salon.whatsappNumber,merchantId:widget.salon.id)))))
+    ]))
+  ])))));
 }
 
 class ProviderDirectoryPage extends StatefulWidget {
