@@ -1793,7 +1793,7 @@ class _OwnerRentalPageState extends State<OwnerRentalPage> {
       title:Text((p['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
       subtitle:Text((p['category']??'').toString()),
       trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);if(v=='delete')remove(p);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('Wax ka beddel')),PopupMenuItem(value:'delete',child:Text('Ka saar'))])
-    )))),
+    ))),
     ])
   );
 }
@@ -2020,7 +2020,7 @@ class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
       const Text('LAMBARRADA MEHERADAHA',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
       const SizedBox(height:6),
       const Text('Meherad kasta u deji lambarkeeda Somtel, Telesom ama Soltelco; USD iyo SLSH si kala gaar ah.'),
-      ...merchants.map((m)=>Card(child:ListTile(title:Text((m['name']??'Meherad').toString()),subtitle:Text('${m['category']??''} • Sawirro: ${m['photo_limit']??10} ugu badnaan'),trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:'Xadka sawirrada',onPressed:()=>editPhotoLimit(m),icon:const Icon(Icons.photo_library_outlined,color:green)),IconButton(tooltip:'Lambarrada lacagta',onPressed:()=>editMerchant(m),icon:const Icon(Icons.payments_outlined,color:green))])))),
+      ...merchants.map((m)=>Card(child:ListTile(title:Text((m['name']??'Meherad').toString()),subtitle:Text('${m['category']??''} • Sawirro: ${m['photo_limit']??10} ugu badnaan'),trailing:Wrap(children:[IconButton(tooltip:'Xadka sawirrada',onPressed:()=>editPhotoLimit(m),icon:const Icon(Icons.photo_library_outlined,color:green)),IconButton(tooltip:'Lambarrada lacagta',onPressed:()=>editMerchant(m),icon:const Icon(Icons.payments_outlined,color:green))])))),
     ])
   );
 }
