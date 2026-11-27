@@ -242,6 +242,19 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama tirtirin');
   }
 
+  static Future<List<Map<String,dynamic>>> ownerBookings(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/owner/bookings'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Ballamaha lama soo qaadi karin');
+    return (b['bookings'] as List).cast<Map<String,dynamic>>();
+  }
+
+  static Future<void> updateBookingStatus(String token,String id,String status) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/bookings/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'status':status}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xaaladda ballanta lama beddelin');
+  }
+
 }
 
 class SalonBookingApp extends StatelessWidget {
@@ -1373,7 +1386,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Codsiga waa la kaydiyey'),
-        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName + (widget.staffName==null?'':' — '+widget.staffName) + ' waa la diray. Sug xaqiijinta meheradda.'),
+        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName + (widget.staffName==null?'':' — '+widget.staffName!) + ' waa la diray. Sug xaqiijinta meheradda.'),
         actions: [
           FilledButton(
             onPressed: () {
