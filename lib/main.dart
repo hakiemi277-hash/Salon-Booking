@@ -237,6 +237,17 @@ class SalonApi {
     final b=jsonDecode(r.body) as Map<String,dynamic>;
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xogta meheradda lama beddelin');
   }
+  static Future<void> updatePhotoLimit(String token,String merchantId,int limit) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/admin/merchants/$merchantId/photo-limit'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'photoLimit':limit}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xadka sawirrada lama beddelin');
+  }
+  static Future<Map<String,dynamic>> ownerRentalInfo(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/owner/rentals'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Alaabta lama soo qaadi karin');
+    return b;
+  }
   static Future<void> updateStaffLimit(String token,String merchantId,int limit) async {
     final r=await http.patch(Uri.parse('$baseUrl/api/admin/merchants/$merchantId/staff-limit'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'staffLimit':limit}));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -1601,6 +1612,8 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
   Widget build(BuildContext context){
     final staff=(data['staff'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
     final limit=int.tryParse((data['staffLimit']??5).toString())??5;
+    final photoLimit=int.tryParse((data['photoLimit']??10).toString())??10;
+    final photoCount=int.tryParse((data['photoCount']??0).toString())??0;
     final activeStaff=staff.where((x)=>x['active']!=0&&x['active']!='0').toList();
     final name=(data['merchantName']??'Meheraddaada').toString();
     return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPromotionPage(token:widget.token))),icon:const Icon(Icons.campaign),tooltip:'Boosaska xayeysiiska'),
@@ -1608,6 +1621,8 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
         Text('SHAQAALAHA: '+activeStaff.length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
+        const SizedBox(height:5),
+        Text('SAWIRRADA MEHERADDA: $photoCount / $photoLimit',style:const TextStyle(color:green,fontWeight:FontWeight.w600)),
         const SizedBox(height:8),
         if(activeStaff.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Weli gabdho shaqaale ah lama diiwaangelin.')),
         ...activeStaff.map((p)=>Card(child:ListTile(
@@ -1669,7 +1684,7 @@ class _OwnerPromotionPageState extends State<OwnerPromotionPage>{
         const SizedBox(height:6),
         const Text('Boosaska la kiraystay waxay muujinayaan muddada ay ku egyihiin. Waxaad codsan kartaa booska marka uu xoroobo; bilowga muddadaada wuxuu noqonayaa marka Admin-ku xaqiijiyo lacagta.'),
         const SizedBox(height:10),
-        ...slots.map((x){final n=Number.tryParse((x['slot']??0).toString())?.toInt()??1;final busy=x['occupied']==true;return Card(child:RadioListTile<int>(value:n,groupValue:slot,onChanged:(v)=>setState(()=>slot=v??1),title:Text('BOOSKA $n',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text(busy?'Hadda waa la kiraystay • Muddada: ${x['planDays']??'—'} maalmood • Wuxuu dhacayaa: ${fmt(x['expiresAt'])}\nWaxaad qabsan kartaa laga bilaabo: ${fmt(x['nextAvailableAt'])}':'Waa bannaan yahay • Hadda ayaad codsan kartaa'),isThreeLine:busy));}),
+        ...slots.map((x){final n=int.tryParse((x['slot']??0).toString())??1;final busy=x['occupied']==true;return Card(child:RadioListTile<int>(value:n,groupValue:slot,onChanged:(v)=>setState(()=>slot=v??1),title:Text('BOOSKA $n',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text(busy?'Hadda waa la kiraystay • Muddada: ${x['planDays']??'—'} maalmood • Wuxuu dhacayaa: ${fmt(x['expiresAt'])}\nWaxaad qabsan kartaa laga bilaabo: ${fmt(x['nextAvailableAt'])}':'Waa bannaan yahay • Hadda ayaad codsan kartaa'),isThreeLine:busy));}),
         const Divider(height:28),
         const Text('MUDDADA XAYEYSIISKA',style:TextStyle(fontWeight:FontWeight.bold,color:green)),
         RadioListTile<int>(value:7,groupValue:days,onChanged:(v)=>setState(()=>days=v??7),title:const Text('7 maalmood — 10,000 SLSH')),
@@ -1727,12 +1742,13 @@ class OwnerRentalPage extends StatefulWidget {
 }
 class _OwnerRentalPageState extends State<OwnerRentalPage> {
   List<Map<String,dynamic>> items=[];
+  int photoCount=0,photoLimit=10;
   bool loading=true;
   @override
   void initState(){super.initState();load();}
   Future<void> load() async {
     setState(()=>loading=true);
-    try{final rows=await SalonApi.ownerRentals(widget.token);if(mounted)setState(()=>{items=rows.where((x)=>x['active']!=0&&x['active']!='0').toList(),loading=false});}
+    try{final d=await SalonApi.ownerRentalInfo(widget.token);final rows=(d['items'] as List).cast<Map<String,dynamic>>();if(mounted)setState(()=>{items=rows.where((x)=>x['active']!=0&&x['active']!='0').toList(),photoCount=int.tryParse((d['photoCount']??0).toString())??0,photoLimit=int.tryParse((d['photoLimit']??10).toString())??10,loading=false});}
     catch(e){if(mounted){setState(()=>loading=false);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
   }
   Future<void> edit([Map<String,dynamic>? p]) async {
@@ -1767,13 +1783,18 @@ class _OwnerRentalPageState extends State<OwnerRentalPage> {
   @override
   Widget build(BuildContext context)=>Scaffold(
     appBar:AppBar(title:const Text('ALAABTA KIRADA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
-    floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.add),label:const Text('KU DAR ALAAB')),
-    body:loading?const Center(child:CircularProgressIndicator(color:green)):items.isEmpty?const Center(child:Text('Weli alaab kiraysi lama gelin.')):ListView(padding:const EdgeInsets.all(14),children:items.map((p)=>Card(child:ListTile(
+    floatingActionButton:FloatingActionButton.extended(onPressed:photoCount>=photoLimit?null:()=>edit(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.add),label:const Text('KU DAR ALAAB')),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):ListView(padding:const EdgeInsets.all(14),children:[
+      Text('SAWIRRADA MEHERADDA: $photoCount / $photoLimit',style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:16)),
+      if(photoCount>=photoLimit)const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('Xadka sawirrada waa buuxsamay. La xiriir Admin-ka si uu kuu kordhiyo.',style:TextStyle(color:Colors.red,fontWeight:FontWeight.w600))),
+      if(items.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Weli alaab kiraysi lama gelin.')),
+      ...items.map((p)=>Card(child:ListTile(
       leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:const Icon(Icons.image,color:green))),
       title:Text((p['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
       subtitle:Text((p['category']??'').toString()),
       trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);if(v=='delete')remove(p);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('Wax ka beddel')),PopupMenuItem(value:'delete',child:Text('Ka saar'))])
-    ))).toList())
+    )))),
+    ])
   );
 }
 
@@ -1967,6 +1988,17 @@ class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Lambarka lacagta waa la kaydiyey.')));
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
+  Future<void> editPhotoLimit(Map<String,dynamic> merchant) async {
+    final c=TextEditingController(text:(merchant['photo_limit']??10).toString());
+    final value=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(
+      title:Text('Xadka sawirrada — ${merchant['name']}'),
+      content:TextField(controller:c,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Tirada sawirrada ugu badan (shaqaale + alaabta kirada)',border:OutlineInputBorder())),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,int.tryParse(c.text.trim())),child:const Text('Kaydi'))]));
+    if(value==null)return;
+    if(value<1||value>200){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Xadka sawirradu waa inuu u dhexeeyaa 1 ilaa 200.')));return;}
+    try{await SalonApi.updatePhotoLimit(widget.token,merchant['id'].toString(),value);await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Xadka sawirrada meheradda waa la beddelay.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
   Future<void> saveFx() async {
     final v=double.tryParse(fx.text.trim());
     if(v==null||v<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Geli sarif sax ah.')));return;}
@@ -1988,7 +2020,7 @@ class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
       const Text('LAMBARRADA MEHERADAHA',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
       const SizedBox(height:6),
       const Text('Meherad kasta u deji lambarkeeda Somtel, Telesom ama Soltelco; USD iyo SLSH si kala gaar ah.'),
-      ...merchants.map((m)=>Card(child:ListTile(title:Text((m['name']??'Meherad').toString()),subtitle:Text((m['category']??'').toString()),trailing:const Icon(Icons.edit,color:green),onTap:()=>editMerchant(m)))),
+      ...merchants.map((m)=>Card(child:ListTile(title:Text((m['name']??'Meherad').toString()),subtitle:Text('${m['category']??''} • Sawirro: ${m['photo_limit']??10} ugu badnaan'),trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:'Xadka sawirrada',onPressed:()=>editPhotoLimit(m),icon:const Icon(Icons.photo_library_outlined,color:green)),IconButton(tooltip:'Lambarrada lacagta',onPressed:()=>editMerchant(m),icon:const Icon(Icons.payments_outlined,color:green))])))),
     ])
   );
 }
