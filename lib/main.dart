@@ -329,6 +329,17 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama tirtirin');
   }
 
+  static Future<void> recordRevenue(String token,Map<String,dynamic> data) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/owner/revenue'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(data));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Dakhliga lama diiwaangelin');
+  }
+  static Future<Map<String,dynamic>> adminRevenue(String token,String from,String to) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/admin/revenue?from=$from&to=$to'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Warbixinta dakhliga lama helin');
+    return b;
+  }
   static Future<List<Map<String,dynamic>>> ownerBookings(String token) async {
     final r=await http.get(Uri.parse('$baseUrl/api/owner/bookings'),headers:{'Authorization':'Bearer $token'});
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -801,6 +812,7 @@ class _HomePageState extends State<HomePage> {
       title: const Text('SALON BOOKING', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
         if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
+        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminRevenuePage(token:adminToken!))),icon:const Icon(Icons.bar_chart),tooltip:'Dakhliga meheradaha'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'La soco lacagaha'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminStoragePage(token:adminToken!))),icon:const Icon(Icons.storage),tooltip:'Maamulka Storage-ka'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPromotionPage(token:adminToken!))),icon:const Icon(Icons.campaign),tooltip:'Xaqiiji boosaska xayeysiiska'),
@@ -1914,6 +1926,29 @@ class _OwnerPromotionPageState extends State<OwnerPromotionPage>{
   }
 }
 
+class AdminRevenuePage extends StatefulWidget {
+  const AdminRevenuePage({super.key,required this.token});
+  final String token;
+  @override
+  State<AdminRevenuePage> createState()=>_AdminRevenuePageState();
+}
+class _AdminRevenuePageState extends State<AdminRevenuePage>{
+  DateTime from=DateTime(DateTime.now().year,DateTime.now().month,1),to=DateTime.now();
+  Map<String,dynamic>? report;bool loading=true;String? error;
+  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+  @override void initState(){super.initState();load();}
+  Future<void> load() async {setState(()=>{loading=true,error=null});try{final x=await SalonApi.adminRevenue(widget.token,date(from),date(to));if(mounted)setState(()=>{report=x,loading=false});}catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}}
+  @override Widget build(BuildContext context){final merchants=(report?['merchants'] as List?)?.cast<Map<String,dynamic>>()??[];final daily=(report?['daily'] as List?)?.cast<Map<String,dynamic>>()??[];return Scaffold(appBar:AppBar(title:const Text('DAKHLIGA MEHERADAHA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
+    Card(child:ListTile(title:const Text('Muddada warbixinta'),subtitle:Text('${date(from)} ilaa ${date(to)}'),trailing:IconButton(icon:const Icon(Icons.date_range),onPressed:()async{final d=await showDateRangePicker(context:context,firstDate:DateTime(2020),lastDate:DateTime.now(),initialDateRange:DateTimeRange(start:from,end:to));if(d!=null){setState(()=>{from=d.start,to=d.end});load();}}))),
+    const Text('WARBIXINTA MEHERAD KASTA',style:TextStyle(fontWeight:FontWeight.bold,fontSize:17)),
+    if(merchants.isEmpty)const Padding(padding:EdgeInsets.all(16),child:Text('Weli dakhli la diiwaangeliyey ma jiro.')),
+    ...merchants.map((m)=>Card(child:ListTile(title:Text((m['merchant_name']??'Meherad').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${m['category']} • Adeegyo dhammaaday: ${m['completed_jobs']}'),trailing:Text('${m['total']} ${m['currency']}',style:const TextStyle(fontWeight:FontWeight.bold,color:green))))),
+    const Divider(),const Text('DAKHLIGA MAALINLAHA AH',style:TextStyle(fontWeight:FontWeight.bold,fontSize:17)),
+    ...daily.map((d)=>ListTile(dense:true,title:Text('${d['service_date']} • ${d['currency']}'),subtitle:Text('Adeegyo: ${d['jobs']}'),trailing:Text('${d['total']}'))),
+    const Padding(padding:EdgeInsets.only(top:12),child:Text('Xogtan waxay ku salaysan tahay dakhliga uu milkiiluhu diiwaangeliyey marka adeeggu dhammaado. Ma aha lacag app-ku si toos ah u xaqiijiyey.',style:TextStyle(fontSize:12,color:Colors.black54))),
+  ]));}
+}
+
 class AdminPromotionPage extends StatefulWidget {
   const AdminPromotionPage({super.key,required this.token});
   final String token;
@@ -2070,6 +2105,24 @@ class _OwnerBookingsPageState extends State<OwnerBookingsPage> {
     try{final rows=await SalonApi.ownerBookings(widget.token);if(mounted)setState(()=>{bookings=rows,error=null,loading=false});}
     catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
   }
+  Future<void> recordIncome(Map<String,dynamic> booking) async {
+    final amount=TextEditingController();
+    String currency='USD';
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setDialog)=>AlertDialog(
+      title:const Text('DIIWAANGELI DAKHLIGA'),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lacagta aad dhab ahaan heshay')),
+        const SizedBox(height:10),
+        DropdownButtonFormField<String>(value:currency,items:const [DropdownMenuItem(value:'USD',child:Text('USD')),DropdownMenuItem(value:'SLSH',child:Text('SLSH'))],onChanged:(v)=>setDialog(()=>currency=v??'USD'),decoration:const InputDecoration(labelText:'Lacagta')),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('JOOJI')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('KAYDI'))],
+    )));
+    if(ok!=true)return;
+    final n=double.tryParse(amount.text.trim());
+    if(n==null||n<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Geli lacag sax ah.')));return;}
+    try{await SalonApi.recordRevenue(widget.token,{'bookingId':booking['id'],'amount':n,'currency':currency,'serviceDate':DateTime.now().toIso8601String().substring(0,10)});await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Dakhliga waa la diiwaangeliyey.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
   Future<void> review(Map<String,dynamic> booking,String status) async {
     try{await SalonApi.updateBookingStatus(widget.token,booking['id'].toString(),status);await load();}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
@@ -2086,6 +2139,7 @@ class _OwnerBookingsPageState extends State<OwnerBookingsPage> {
         Text('Taariikh: '+(d['date']??'').toString()+' • Waqti: '+(d['time']??'').toString()),
         Text('Telefoon: '+(b['customer_phone']??'').toString()),
         Text('Xaalad: '+status,style:const TextStyle(fontWeight:FontWeight.w600,color:green)),
+        if(status=='La aqbalay')Padding(padding:const EdgeInsets.only(top:8),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>recordIncome(b),icon:const Icon(Icons.point_of_sale),label:const Text('ADEEGGA DHAMMEE • DIIWAANGELI DAKHLIGA'),style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white)))),
         if(status=='Sugaya jawaab')Row(children:[
           Expanded(child:OutlinedButton(onPressed:()=>review(b,'Lama heli karo'),child:const Text('DIID'))),
           const SizedBox(width:8),
