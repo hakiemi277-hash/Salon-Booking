@@ -2253,7 +2253,6 @@ class _HallAroosPageState extends State<HallAroosPage>{
           ])
         ]))
       ])))
-      ))
     ])),
   );
 }
