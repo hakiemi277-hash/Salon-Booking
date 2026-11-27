@@ -997,7 +997,37 @@ class _SalonServicesSheetState extends State<_SalonServicesSheet>{
     const SizedBox(height:12),const Text('ADEEGYADA SALON-KA',style:TextStyle(fontWeight:FontWeight.bold)),
     const SizedBox(height:8),Expanded(child:loading?const Center(child:CircularProgressIndicator(color:green)):ListView(children:[
       if(staff.isEmpty)const Padding(padding:EdgeInsets.all(10),child:Text('Meheraddan wali ma diiwaangelin hablaha shaqeeya.')),
-      ...staff.map((person){List<dynamic> services=[];try{services=jsonDecode((person['services_json']??'[]').toString()) as List;}catch(_){}return Card(child:ListTile(leading:const CircleAvatar(backgroundColor:cream,child:Icon(Icons.person,color:green)),title:Text((person['name']??'').toString()),subtitle:Text(services.join(', ')),trailing:const Icon(Icons.arrow_forward_ios,size:15),onTap:services.isEmpty?null:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:widget.salon.name,serviceName:services.first.toString(),whatsappNumber:widget.salon.whatsappNumber,merchantId:widget.salon.id,staffId:person['id'].toString(),staffName:person['name'].toString()))));}),
+      ...staff.map((person) {
+        List<dynamic> services = [];
+        try {
+          services = jsonDecode((person['services_json'] ?? '[]').toString()) as List;
+        } catch (_) {}
+        return Card(
+          child: ListTile(
+            leading: const CircleAvatar(backgroundColor: cream, child: Icon(Icons.person, color: green)),
+            title: Text((person['name'] ?? '').toString()),
+            subtitle: Text(services.join(', ')),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 15),
+            onTap: services.isEmpty
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SalonBookingPage(
+                          salonName: widget.salon.name,
+                          serviceName: services.first.toString(),
+                          whatsappNumber: widget.salon.whatsappNumber,
+                          merchantId: widget.salon.id,
+                          staffId: person['id'].toString(),
+                          staffName: person['name'].toString(),
+                        ),
+                      ),
+                    );
+                  },
+          ),
+        );
+      }),
       ...widget.salon.services.map((service)=>ListTile(leading:const Icon(Icons.spa_outlined,color:green),title:Text(service),trailing:const Icon(Icons.arrow_forward_ios,size:15),onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:widget.salon.name,serviceName:service,whatsappNumber:widget.salon.whatsappNumber,merchantId:widget.salon.id)))))
     ]))
   ])))));
