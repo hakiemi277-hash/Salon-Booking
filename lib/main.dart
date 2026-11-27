@@ -2306,7 +2306,7 @@ class _HallAroosPageState extends State<HallAroosPage>{
             TextButton.icon(onPressed:()=>remove(h),icon:const Icon(Icons.delete_outline,color:Colors.red),label:const Text('TIRTIR',style:TextStyle(color:Colors.red))),
           ])
         ]))
-      ])))
+      ]))))
     ])),
   );
 }
