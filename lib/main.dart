@@ -733,7 +733,7 @@ class _HomePageState extends State<HomePage> {
           sectionTile('SALON', 'Adeegyada quruxda', Icons.spa_outlined, 0),
           sectionTile('CAKES', 'Dalbo cake', Icons.cake_outlined, 1),
           sectionTile('DECORATION', 'Qurxinta munaasabadaha', Icons.celebration_outlined, 2),
-          sectionTile('KIRAYSO', 'SAD RENTAL, TAASH iyo maryo', Icons.checkroom, 3),
+          sectionTile('KIRAYSO', 'SAD KIRAYSO, TAASH iyo maryo', Icons.checkroom, 3),
         ],
       ),
       if (selectedSection == 0) ...[
@@ -1610,7 +1610,7 @@ class _OwnerRentalPageState extends State<OwnerRentalPage> {
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
       title:Text(p==null?'Ku dar alaab kiraysi':'Wax ka beddel alaabta'),
       content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??category)),
+        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SAD RENTAL','TAASH','TOOBKA MEHERKA','SUBEECIYAD'].map((v)=>DropdownMenuItem(value:v,child:Text(v=='SAD RENTAL'?'SAD KIRAYSO':v))).toList(),onChanged:(v)=>refresh(()=>category=v??category)),
         TextField(controller:name,decoration:const InputDecoration(labelText:'Magaca alaabta')),
         TextField(controller:desc,maxLines:3,decoration:const InputDecoration(labelText:'Faahfaahin (ikhtiyaari)')),
         const SizedBox(height:8),
@@ -1972,7 +1972,7 @@ class RentalPage extends StatelessWidget {
         margin:const EdgeInsets.only(bottom:10),
         child:ListTile(contentPadding:const EdgeInsets.all(14),
           leading:const CircleAvatar(backgroundColor:cream,child:Icon(Icons.checkroom,color:green)),
-          title:Text(v,style:const TextStyle(fontWeight:FontWeight.bold)),
+          title:Text(v=='SAD RENTAL'?'SAD KIRAYSO':v,style:const TextStyle(fontWeight:FontWeight.bold)),
           subtitle:const Text('Halkan ka eeg sawirada alaabta'),
           trailing:const Icon(Icons.arrow_forward_ios,size:16),
           onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalGalleryPage(category:v,city:city))),
@@ -1999,7 +1999,7 @@ class _RentalGalleryPageState extends State<RentalGalleryPage> {
   }
   @override
   Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:Text(widget.category),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    appBar:AppBar(title:Text(widget.category=='SAD RENTAL'?'SAD KIRAYSO':widget.category),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
     body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):items.isEmpty?const Center(child:Text('Weli sawirro alaab ah laguma darin qaybtan magaalada.')):GridView.builder(
       padding:const EdgeInsets.all(12),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,childAspectRatio:.68,crossAxisSpacing:10,mainAxisSpacing:10),itemCount:items.length,
       itemBuilder:(ctx,i){final p=items[i];return Card(clipBehavior:Clip.antiAlias,child:InkWell(
@@ -2019,8 +2019,8 @@ class _RentalGalleryPageState extends State<RentalGalleryPage> {
 }
 
 class RentalRequestPage extends StatefulWidget {
-  const RentalRequestPage({super.key, required this.category});
-  final String category;
+  const RentalRequestPage({super.key, required this.category, required this.selectedItem, required this.merchantId, required this.merchantName, required this.merchantLocation});
+  final String category, selectedItem, merchantId, merchantName, merchantLocation;
   @override
   State<RentalRequestPage> createState() => _RentalRequestPageState();
 }
@@ -2047,6 +2047,7 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
     final p = await SharedPreferences.getInstance();
     customer.text = p.getString('customer_name') ?? '';
     phone.text = p.getString('customer_phone') ?? '';
+    item.text = widget.selectedItem;
     if (mounted) setState(() => loading = false);
   }
 
@@ -2092,6 +2093,7 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
     try {
       bookingResult = await SalonApi.createBooking(
         category: 'KIRAYSO',
+        merchantId: widget.merchantId,
         customerName: customer.text.trim(),
         customerPhone: phone.text.trim(),
         customerWhatsApp: p.getString('customer_whatsapp') ?? phone.text.trim(),
