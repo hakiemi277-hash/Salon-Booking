@@ -131,6 +131,12 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lacag-bixinnada lama soo qaadi karin');
     return (b['payments'] as List).cast<Map<String,dynamic>>();
   }
+  static Future<Map<String,dynamic>> adminStorage(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/admin/storage'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Kaydka lama soo qaadi karin');
+    return b;
+  }
   static Future<void> reviewPayment(String token,String id,String status) async {
     final r=await http.patch(Uri.parse('$baseUrl/api/admin/payments/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'status':status}));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -754,6 +760,7 @@ class _HomePageState extends State<HomePage> {
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
         if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),
+        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminStoragePage(token:adminToken!))),icon:const Icon(Icons.storage),tooltip:'Maamulka Storage-ka'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPromotionPage(token:adminToken!))),icon:const Icon(Icons.campaign),tooltip:'Xaqiiji boosaska xayeysiiska'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentSettingsPage(token:adminToken!))),icon:const Icon(Icons.settings_applications),tooltip:'Hababka lacagta iyo sarifka'),
         IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Dalabyadayda'),
@@ -1997,6 +2004,59 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
       })
     ])
   );
+}
+
+class AdminStoragePage extends StatefulWidget {
+  const AdminStoragePage({super.key,required this.token});
+  final String token;
+  @override
+  State<AdminStoragePage> createState()=>_AdminStoragePageState();
+}
+class _AdminStoragePageState extends State<AdminStoragePage>{
+  Map<String,dynamic>? data;
+  bool loading=true;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    setState(()=>{loading=true,error=null});
+    try{final x=await SalonApi.adminStorage(widget.token);if(mounted)setState(()=>{data=x,loading=false});}
+    catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  String sizeText(dynamic value){
+    final n=(value as num?)?.toDouble()??0;
+    if(n<1024)return '${n.toStringAsFixed(0)} B';
+    if(n<1024*1024)return '${(n/1024).toStringAsFixed(1)} KB';
+    if(n<1024*1024*1024)return '${(n/1024/1024).toStringAsFixed(2)} MB';
+    return '${(n/1024/1024/1024).toStringAsFixed(2)} GB';
+  }
+  Widget metric(String title,String value,IconData icon)=>Card(child:ListTile(leading:Icon(icon,color:green,size:30),title:Text(title),subtitle:Text(value,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold))));
+  @override
+  Widget build(BuildContext context){
+    final d1=data?['d1'] as Map<String,dynamic>?;
+    final r2=data?['r2'] as Map<String,dynamic>?;
+    final tables=(d1?['tables'] as List? ?? const []).cast<Map<String,dynamic>>();
+    final groups=(r2?['groups'] as List? ?? const []).cast<Map<String,dynamic>>();
+    return Scaffold(
+      appBar:AppBar(title:const Text('MAAMULKA STORAGE-KA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+      body:loading?const Center(child:CircularProgressIndicator()):error!=null?Center(child:Padding(padding:const EdgeInsets.all(20),child:Text(error!,textAlign:TextAlign.center))):RefreshIndicator(
+        onRefresh:load,child:ListView(padding:const EdgeInsets.all(14),children:[
+          const Text('Kaydka xogta app-ka',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+          metric('Cloudflare D1 — Database',sizeText(d1?['bytes']),Icons.storage),
+          metric('Cloudflare R2 — Sawirrada oo dhan','${r2?['objects']??0} sawir • ${sizeText(r2?['bytes'])}',Icons.photo_library),
+          const SizedBox(height:12),
+          const Text('R2 — Kala-qaybinta sawirrada',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
+          ...groups.map((g)=>Card(child:ListTile(leading:const Icon(Icons.folder,color:green),title:Text(g['name']?.toString()??'Kayd kale'),subtitle:Text('${g['objects']??0} fayl'),trailing:Text(sizeText(g['bytes']),style:const TextStyle(fontWeight:FontWeight.bold))))),
+          const SizedBox(height:12),
+          const Text('D1 — Jadwallada xogta',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
+          ...tables.map((t)=>Card(child:ListTile(dense:true,leading:const Icon(Icons.table_chart,color:green),title:Text(t['name'].toString()),trailing:Text('${t['count']??0} diiwaan',style:const TextStyle(fontWeight:FontWeight.bold))))),
+          const SizedBox(height:12),
+          const Text('Ogow: boggani wuxuu cabbiraa D1 iyo R2 ee server-ka. Kaydka gudaha telefoon kasta (Local Storage) meel fog lagama cabbiri karo.',style:TextStyle(color:Colors.black54,fontSize:12)),
+          if(data?['measuredAt']!=null)Text('La cusboonaysiiyey: ${data!['measuredAt']}',style:const TextStyle(color:Colors.black45,fontSize:11)),
+        ]),
+      ),
+    );
+  }
 }
 
 class AdminPaymentsPage extends StatefulWidget {
