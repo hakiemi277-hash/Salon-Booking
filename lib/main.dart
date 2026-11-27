@@ -305,6 +305,9 @@ class HomePage extends StatefulWidget {
 }
 class _HomePageState extends State<HomePage> {
   bool admin = false;
+  String selectedCity = 'Hargeysa';
+  static const List<String> activeCities = ['Hargeysa', 'Burco'];
+  static const List<String> upcomingCities = ['Boorama', 'Berbera', 'Ceerigaabo', 'Gebiley'];
 
   String? adminToken;
   List<Map<String,dynamic>> featured=[];
@@ -314,7 +317,7 @@ class _HomePageState extends State<HomePage> {
   Timer? featuredTimer;
   @override
   void initState(){
-    super.initState(); loadFeatured();
+    super.initState(); loadFeatured(); loadSelectedCity();
     featuredTimer=Timer.periodic(const Duration(seconds:3),(_){
       if(!mounted||featured.length<2||!featuredController.hasClients)return;
       featuredPage=(featuredPage+1)%featured.length;
@@ -323,6 +326,11 @@ class _HomePageState extends State<HomePage> {
   }
   @override
   void dispose(){featuredTimer?.cancel();featuredController.dispose();super.dispose();}
+  Future<void> loadSelectedCity() async {final p=await SharedPreferences.getInstance();final saved=p.getString('selected_city');if(mounted&&activeCities.contains(saved))setState(()=>selectedCity=saved!);}
+  Future<void> chooseCity() async {
+    final value=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Dooro magaaladaada'),content:Column(mainAxisSize:MainAxisSize.min,children:[const Text('Magaalooyinka shaqaynaya'),...activeCities.map((city)=>ListTile(leading:const Icon(Icons.location_city,color:green),title:Text(city),onTap:()=>Navigator.pop(ctx,city))),const Divider(),const Text('Weli lama diiwaangelin'),...upcomingCities.map((city)=>ListTile(enabled:false,leading:const Icon(Icons.lock_outline),title:Text(city),subtitle:const Text('Dib ayaa loogu dari doonaa')))])));
+    if(value==null)return;final p=await SharedPreferences.getInstance();await p.setString('selected_city',value);if(mounted)setState(()=>selectedCity=value);
+  }
   final Map<String,String> categoryImageUrls={};
   final Map<String,String> categoryImageIds={};
   static const String categoryImageMarker='__CATEGORY_IMAGE__';
@@ -493,6 +501,7 @@ class _HomePageState extends State<HomePage> {
           Text('Quruxdaada, hal meel.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.bold)),
           SizedBox(height: 8), Text('Dooro qaybta aad u baahan tahay.', style: TextStyle(color: Colors.white))])),
       const SizedBox(height: 16),
+      Card(child:ListTile(leading:const Icon(Icons.location_on,color:green),title:const Text('Magaaladaada'),subtitle:Text(selectedCity,style:const TextStyle(fontWeight:FontWeight.bold,color:green)),trailing:const Icon(Icons.keyboard_arrow_down),onTap:chooseCity)),
       featuredSection(),
       const SizedBox(height: 12),
       GridView.count(
@@ -510,7 +519,9 @@ class _HomePageState extends State<HomePage> {
         const Text('BALLAN QABSO — SALON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
         const SizedBox(height: 6), const Text('SALON-LADA', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8), OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'SALON'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
-        const SizedBox(height: 10), Wrap(spacing: 10, runSpacing: 10, children: List.generate(salons.length, (i) => SizedBox(width: (MediaQuery.of(context).size.width - 48) / 2, child: salonCard(i)))),
+        const SizedBox(height: 10),
+        if(salons.where((s)=>s.location.trim().toLowerCase()==selectedCity.toLowerCase()).isEmpty) Padding(padding:const EdgeInsets.all(18),child:Text('Magaalada $selectedCity weli lagama diiwaangelin meherado salon ah.',textAlign:TextAlign.center))
+        else Wrap(spacing:10,runSpacing:10,children:salons.asMap().entries.where((e)=>e.value.location.trim().toLowerCase()==selectedCity.toLowerCase()).map((e)=>SizedBox(width:(MediaQuery.of(context).size.width-48)/2,child:salonCard(e.key))).toList()),
       ],
       if (selectedSection == 1) ...[
         const SizedBox(height: 20),
@@ -533,7 +544,7 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 8),
         OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'KIRAYSO'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
         actionCard('SAD RENTAL, TAASH, TOOBKA MEHERKA, SUBEECIYAD', 'KIRAYSO', Icons.checkroom,
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RentalPage()))),
+          () => Navigator.push(context, MaterialPageRoute(builder: (_) => RentalPage(city:selectedCity)))),
       ],
       if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN DEMO: isbeddelladani qalabka oo keliya ayay ku jiraan; database/server wali lama xirin.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
     ]));
@@ -542,7 +553,7 @@ class _HomePageState extends State<HomePage> {
     return InkWell(
       onTap: () {
         if (index == 2) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const ProviderDirectoryPage(title: 'DECORATION', isCake: false)));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ProviderDirectoryPage(title: 'DECORATION', isCake: false, city:selectedCity)));
           return;
         }
         setState(() => selectedSection = selectedSection == index ? -1 : index);
@@ -622,7 +633,7 @@ class _HomePageState extends State<HomePage> {
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(
-        builder: (_) => ProviderDirectoryPage(title: title, isCake: isCake))),
+        builder: (_) => ProviderDirectoryPage(title: title, isCake: isCake, city:selectedCity))),
       child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
         Container(width: 58, height: 58, decoration: BoxDecoration(color: pink, borderRadius: BorderRadius.circular(14)),
           child: Icon(icon, color: green, size: 32)),
@@ -643,15 +654,17 @@ class _HomePageState extends State<HomePage> {
 }
 
 class ProviderDirectoryPage extends StatefulWidget {
-  const ProviderDirectoryPage({super.key, required this.title, required this.isCake});
+  const ProviderDirectoryPage({super.key, required this.title, required this.isCake, required this.city});
   final String title;
   final bool isCake;
+  final String city;
   @override
   State<ProviderDirectoryPage> createState() => _ProviderDirectoryPageState();
 }
 class _ProviderDirectoryPageState extends State<ProviderDirectoryPage> {
   bool adminMode = false;
   Map<String, String> numbers = {};
+  Map<String, String> providerCities = {};
   List<String> get providers => List<String>.generate(20, (i) =>
     widget.isCake ? 'Cake Meherad ' + (i + 1).toString() : 'Decoration Meherad ' + (i + 1).toString());
   String get storageKey => widget.isCake ? 'cake_provider_whatsapp' : 'decoration_provider_whatsapp';
@@ -659,11 +672,19 @@ class _ProviderDirectoryPageState extends State<ProviderDirectoryPage> {
   void initState() { super.initState(); _loadNumbers(); }
   Future<void> _loadNumbers() async {
     final p = await SharedPreferences.getInstance();
+    final cityRaw=p.getString(storageKey+'_cities');
+    if(cityRaw!=null){final d=jsonDecode(cityRaw) as Map<String,dynamic>;providerCities=d.map((k,v)=>MapEntry(k,v.toString()));}
+    for(final provider in providers){providerCities.putIfAbsent(provider,()=> 'Hargeysa');}
     final raw = p.getString(storageKey);
     if (raw != null) {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       if (mounted) setState(() => numbers = decoded.map((k,v) => MapEntry(k, v.toString())));
     }
+    if(mounted)setState((){});
+  }
+  Future<void> _editCity(String provider) async {
+    final value=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:Text('Magaalada $provider'),content:DropdownButtonFormField<String>(value:providerCities[provider]??'Hargeysa',items:const [DropdownMenuItem(value:'Hargeysa',child:Text('Hargeysa')),DropdownMenuItem(value:'Burco',child:Text('Burco'))],onChanged:(v)=>Navigator.pop(ctx,v))));
+    if(value==null)return;providerCities[provider]=value;final p=await SharedPreferences.getInstance();await p.setString(storageKey+'_cities',jsonEncode(providerCities));if(mounted)setState((){});
   }
   Future<void> _editNumber(String provider) async {
     final c = TextEditingController(text: numbers[provider] ?? '');
@@ -690,8 +711,8 @@ class _ProviderDirectoryPageState extends State<ProviderDirectoryPage> {
           (widget.isCake ? 'cakes' : 'decoration') + ' ah.', style: const TextStyle(fontWeight: FontWeight.w600))),
       if (adminMode) const Padding(padding: EdgeInsets.only(top: 8), child: Text('ADMIN DEMO: lambarrada halkan lagu kaydiyo waxay ku jiraan telefoonkan oo keliya.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
       const SizedBox(height: 12),
-      Wrap(spacing: 10, runSpacing: 10, children: List.generate(providers.length, (i) {
-        final provider = providers[i];
+      if(providers.where((p)=>providerCities[p]==widget.city).isEmpty) Padding(padding:const EdgeInsets.all(18),child:Text('Magaalada ${widget.city} weli lagama diiwaangelin meherado ${widget.title.toLowerCase()} ah.',textAlign:TextAlign.center)),
+      Wrap(spacing: 10, runSpacing: 10, children: providers.where((p)=>providerCities[p]==widget.city).map((provider) {
         return SizedBox(width: (MediaQuery.of(context).size.width - 48) / 2, child: Card(
           margin: EdgeInsets.zero,
           child: InkWell(
@@ -706,13 +727,12 @@ class _ProviderDirectoryPageState extends State<ProviderDirectoryPage> {
               Text(provider, style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 5),
               Text(widget.isCake ? 'Cake design iyo dalabyo' : 'Qurxinta munaasabadaha', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-              Align(alignment: Alignment.centerRight, child: adminMode
-                ? IconButton(padding: EdgeInsets.zero, constraints: const BoxConstraints(), icon: const Icon(Icons.phone, size: 18), onPressed: () => _editNumber(provider))
-                : const Icon(Icons.arrow_forward_ios, size: 14, color: green)),
+              Text('Magaalada: ${providerCities[provider]??'Hargeysa'}',style:const TextStyle(fontSize:11,color:green)),
+              if(adminMode)Wrap(children:[TextButton(onPressed:()=>_editCity(provider),child:const Text('Magaalo')),TextButton(onPressed:()=>_editNumber(provider),child:const Text('Telefoon'))]) else const Align(alignment:Alignment.centerRight,child:Icon(Icons.arrow_forward_ios,size:14,color:green)),
             ])),
           ),
         ));
-      })),
+      }).toList()),
     ]),
   );
 }
@@ -1479,11 +1499,13 @@ class _FullPackagesPageState extends State<FullPackagesPage> {
 
 
 class RentalPage extends StatelessWidget {
-  const RentalPage({super.key});
+  const RentalPage({super.key, required this.city});
+  final String city;
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('KIRAYSO'), backgroundColor: green, foregroundColor: Colors.white),
     body: ListView(padding: const EdgeInsets.all(18), children: [
+      Text('Magaalada: $city',style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
       const Text('Qaybta kiraynta', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: green)),
       const SizedBox(height: 6),
       const Text('Dooro qaybta aad rabto, kadib buuxi codsiga kiraysiga.'),
