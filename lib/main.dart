@@ -806,7 +806,7 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height:6),
         Wrap(spacing:5,runSpacing:4,children:services.map((v)=>OutlinedButton(
           style:OutlinedButton.styleFrom(padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),minimumSize:const Size(0,30)),
-          onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:salon.name,serviceName:v.toString(),whatsappNumber:salon.whatsappNumber,staffId:person['id'].toString(),staffName:person['name'].toString()))),
+          onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:salon.name,serviceName:v.toString(),whatsappNumber:salon.whatsappNumber,merchantId:salon.id,staffId:person['id'].toString(),staffName:person['name'].toString()))),
           child:Text('BALLAN: '+v.toString(),style:const TextStyle(fontSize:10)))).toList())
       ]))
     ])));
@@ -821,7 +821,7 @@ class _HomePageState extends State<HomePage> {
           Image.network(pics[j], width: 145, height: 112, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(width: 145, height: 112, color: Colors.black12, child: const Icon(Icons.image))),
           Positioned(left: 5, right: 5, bottom: 5, child: FilledButton(
             style: FilledButton.styleFrom(backgroundColor: green, padding: const EdgeInsets.symmetric(horizontal: 5)),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SalonBookingPage(salonName: salons[salonIndex].name, serviceName: service, whatsappNumber: salons[salonIndex].whatsappNumber))),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SalonBookingPage(salonName: salons[salonIndex].name, serviceName: service, whatsappNumber: salons[salonIndex].whatsappNumber, merchantId: salons[salonIndex].id))),
             child: const Text('BALLAN QABSO', style: TextStyle(fontSize: 10))))])); })),
       if (admin) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => salons[salonIndex].services.remove(service)),
         child: const Text('Ka saar adeeggan salon-kan', style: TextStyle(color: Colors.red))))]);
@@ -1249,10 +1249,11 @@ class _CakePageState extends State<CakePage> {
 
 
 class SalonBookingPage extends StatefulWidget {
-  const SalonBookingPage({super.key, required this.salonName, required this.serviceName, this.whatsappNumber = '', this.staffId, this.staffName});
+  const SalonBookingPage({super.key, required this.salonName, required this.serviceName, this.whatsappNumber = '', this.staffId, this.staffName, this.merchantId});
   final String salonName;
   final String serviceName;
   final String whatsappNumber;
+  final String? merchantId;
   final String? staffId;
   final String? staffName;
   @override
@@ -1321,6 +1322,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
     try {
       await SalonApi.createBooking(
         category: 'SALON',
+        merchantId: widget.merchantId,
         customerName: name.text.trim(),
         customerPhone: phone.text.trim(),
         customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
