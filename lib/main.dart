@@ -156,11 +156,6 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Hababka lacagta lama soo qaadi karin');
     return b;
   }
-  static Future<void> savePaymentConfig(String token,String merchantId,String provider,String currency,String recipientNumber) async {
-    final r=await http.put(Uri.parse('$baseUrl/api/admin/payment-configs'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'merchantId':merchantId,'provider':provider,'currency':currency,'recipientNumber':recipientNumber}));
-    final b=jsonDecode(r.body) as Map<String,dynamic>;
-    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lambarka lacagta lama kaydin');
-  }
   static Future<Map<String,dynamic>> promotionConfig() async {
     final r=await http.get(Uri.parse('$baseUrl/api/settings/promotions'));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -719,7 +714,19 @@ class _HomePageState extends State<HomePage> {
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Admin kuma jiro. Fadlan dib uga gal Admin-ka.')));
       return;
     }
-    final n=await ask('Ku dar Salon','Magaca salon-ka');
+    String chosenCategory='SALON';
+    final category=await showDialog<String>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:const Text('QAYBTA MEHERADDA'),
+      content:DropdownButtonFormField<String>(value:chosenCategory,items:const [
+        DropdownMenuItem(value:'SALON',child:Text('SALON')),
+        DropdownMenuItem(value:'CAKES',child:Text('CAKES')),
+        DropdownMenuItem(value:'DECORATION',child:Text('DECORATION')),
+        DropdownMenuItem(value:'KIRAYSO',child:Text('KIRAYSO')),
+      ],onChanged:(v)=>refresh(()=>chosenCategory=v??chosenCategory)),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,chosenCategory),child:const Text('SII WAD'))]
+    )));
+    if(category==null||!mounted)return;
+    final n=await ask('Diiwaangeli Meherad','Magaca meheradda');
     if(n==null||!mounted)return;
     if(n.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Magaca salon-ka waa waajib.')));return;}
     final l=await ask('Goobta Salon-ka','Magaalada / xaafadda');
@@ -747,7 +754,7 @@ class _HomePageState extends State<HomePage> {
       if((somtelSlsh??'').trim().isNotEmpty) {'provider':'Somtel','currency':'SLSH','recipientNumber':somtelSlsh!.trim()},
     ];
     try {
-      await SalonApi.createMerchantWithOwner(adminToken!,{'category':'SALON','name':n.trim(),'location':(l??'Hargeysa').trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
+      await SalonApi.createMerchantWithOwner(adminToken!,{'category':category,'name':n.trim(),'location':(l??'Hargeysa').trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
       await loadSalons();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda iyo akoonkeeda waa la diiwaangeliyey.')));
     } catch(e) {
@@ -2094,7 +2101,7 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
     final methods=(config['methods'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
     if(methods.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheraddu weli ma dejin lambarrada lacagta. La xiriir meheradda.')));return;}
     String provider=(methods.first['provider']??'Telesom').toString();
-    String currency=(methods.first['currency']??'USD').toString();
+    String currency=(details['currency']??methods.first['currency']??'USD').toString();
     String recipient=methods.first['recipient_number']?.toString()??'';
     final id=(order['id']??'').toString();
     final p=await SharedPreferences.getInstance();
@@ -2111,7 +2118,7 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
           DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:available.map((m)=>m['currency'].toString()).toSet().map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??currency)),
           Container(width:double.infinity,margin:const EdgeInsets.symmetric(vertical:10),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:green.withOpacity(.08),borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('LAMBARKA LACAGTA MEHERADDA',style:TextStyle(fontSize:11,fontWeight:FontWeight.bold)),SelectableText(recipient.isEmpty?'Lambar lama hayo':recipient,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold,color:green))])),
           TextField(controller:sender,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Number-ka aad lacagta ka dirtay')),
-          TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lacagta aad dirtay')),
+          TextField(controller:amount,readOnly:true,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Qiimaha alaabta (lama beddeli karo)')),
         ])),
         actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('DIR CODSIGA'))]
       );
