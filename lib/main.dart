@@ -148,6 +148,40 @@ class SalonApi {
     final b=jsonDecode(r.body) as Map<String,dynamic>;
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lambarka lacagta lama kaydin');
   }
+  static Future<Map<String,dynamic>> promotionConfig() async {
+    final r=await http.get(Uri.parse('$baseUrl/api/settings/promotions'));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lambarrada xayeysiiska lama soo qaadi karin');
+    return b;
+  }
+  static Future<void> savePromotionConfig(String token,String telesom,String somtel) async {
+    final r=await http.put(Uri.parse('$baseUrl/api/admin/settings/promotions'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'telesomNumber':telesom,'somtelNumber':somtel}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lambarrada xayeysiiska lama kaydin');
+  }
+  static Future<Map<String,dynamic>> ownerPromotionInfo(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/owner/promotions'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xogta boosaska lama soo qaadi karin');
+    return b;
+  }
+  static Future<void> createOwnerPromotion(String token,int slot,int days,String provider,String senderPhone) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/owner/promotions'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'slot':slot,'planDays':days,'provider':provider,'senderPhone':senderPhone}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Codsiga xayeysiiska lama dirin');
+  }
+  static Future<List<Map<String,dynamic>>> adminPromotionRequests(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/admin/promotions'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Codsiyada xayeysiiska lama soo qaadi karin');
+    return (b['requests'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> reviewPromotion(String token,String id,String status) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/admin/promotions/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'status':status}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xaqiijinta xayeysiiska way fashilantay');
+  }
+
   static Future<double?> exchangeRate() async {
     final r=await http.get(Uri.parse('$baseUrl/api/settings/fx'));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -711,6 +745,7 @@ class _HomePageState extends State<HomePage> {
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
         if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),
+        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPromotionPage(token:adminToken!))),icon:const Icon(Icons.campaign),tooltip:'Xaqiiji boosaska xayeysiiska'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentSettingsPage(token:adminToken!))),icon:const Icon(Icons.settings_applications),tooltip:'Hababka lacagta iyo sarifka'),
         IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Dalabyadayda'),
         IconButton(onPressed: openMerchantLogin, icon: const Icon(Icons.storefront), tooltip: 'Gelitaanka meheradda'),
@@ -1568,7 +1603,8 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
     final limit=int.tryParse((data['staffLimit']??5).toString())??5;
     final activeStaff=staff.where((x)=>x['active']!=0&&x['active']!='0').toList();
     final name=(data['merchantName']??'Meheraddaada').toString();
-    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPromotionPage(token:widget.token))),icon:const Icon(Icons.campaign),tooltip:'Boosaska xayeysiiska'),
+      IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
         Text('SHAQAALAHA: '+activeStaff.length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
@@ -1585,6 +1621,103 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
 }
 
 
+
+class OwnerPromotionPage extends StatefulWidget {
+  const OwnerPromotionPage({super.key,required this.token});
+  final String token;
+  @override
+  State<OwnerPromotionPage> createState()=>_OwnerPromotionPageState();
+}
+class _OwnerPromotionPageState extends State<OwnerPromotionPage>{
+  Map<String,dynamic> data={};
+  bool loading=true,sending=false;
+  int slot=1,days=7;
+  String provider='Telesom';
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    setState(()=>loading=true);
+    try{final d=await SalonApi.ownerPromotionInfo(widget.token);if(mounted)setState(()=>{data=d,loading=false});}
+    catch(e){if(mounted){setState(()=>loading=false);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
+  }
+  int get amount=>days==7?10000:days==10?15000:50000;
+  String fmt(dynamic value){if(value==null)return '—';try{return DateTime.parse(value.toString()).toLocal().toString().substring(0,16);}catch(_){return value.toString();}}
+  Future<void> sendNow() async {
+    final payment=(data['payment'] as Map?)?.cast<String,dynamic>()??{};
+    final number=(provider=='Telesom'?payment['telesomNumber']:payment['somtelNumber'])?.toString()??'';
+    final ussd=provider=='Telesom'?'*220*$number*$amount#':'*770*$number*$amount#';
+    try{await launchUrl(Uri(scheme:'tel',path:ussd),mode:LaunchMode.externalApplication);}catch(_){}
+    final sender=TextEditingController();
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('LAMBARKA AAD LACAGTA KA DIRAY'),
+      content:TextField(controller:sender,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Geli lambarka Telesom / Somtel ee aad ka dirtay')),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('DIR CODSIGA'))]));
+    if(ok!=true||!mounted)return;
+    if(sender.text.trim().replaceAll(RegExp(r'[^0-9]'),'').length<7){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Geli lambarka lacagta aad ka dirtay.')));return;}
+    setState(()=>sending=true);
+    try{await SalonApi.createOwnerPromotion(widget.token,slot,days,provider,sender.text.trim());await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Codsiga waa la diray. Sug inta Admin-ku xaqiijinayo lacagta.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+    if(mounted)setState(()=>sending=false);
+  }
+  @override
+  Widget build(BuildContext context){
+    final slots=(data['slots'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
+    final requests=(data['requests'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
+    return Scaffold(appBar:AppBar(title:const Text('BOOSASKA XAYEYSIISKA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+      body:loading?const Center(child:CircularProgressIndicator(color:green)):ListView(padding:const EdgeInsets.all(14),children:[
+        const Text('DOORO MID KA MID AH 4-TA BOOS',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
+        const SizedBox(height:6),
+        const Text('Boosaska la kiraystay waxay muujinayaan muddada ay ku egyihiin. Waxaad codsan kartaa booska marka uu xoroobo; bilowga muddadaada wuxuu noqonayaa marka Admin-ku xaqiijiyo lacagta.'),
+        const SizedBox(height:10),
+        ...slots.map((x){final n=Number.tryParse((x['slot']??0).toString())?.toInt()??1;final busy=x['occupied']==true;return Card(child:RadioListTile<int>(value:n,groupValue:slot,onChanged:(v)=>setState(()=>slot=v??1),title:Text('BOOSKA $n',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text(busy?'Hadda waa la kiraystay • Muddada: ${x['planDays']??'—'} maalmood • Wuxuu dhacayaa: ${fmt(x['expiresAt'])}\nWaxaad qabsan kartaa laga bilaabo: ${fmt(x['nextAvailableAt'])}':'Waa bannaan yahay • Hadda ayaad codsan kartaa'),isThreeLine:busy));}),
+        const Divider(height:28),
+        const Text('MUDDADA XAYEYSIISKA',style:TextStyle(fontWeight:FontWeight.bold,color:green)),
+        RadioListTile<int>(value:7,groupValue:days,onChanged:(v)=>setState(()=>days=v??7),title:const Text('7 maalmood — 10,000 SLSH')),
+        RadioListTile<int>(value:10,groupValue:days,onChanged:(v)=>setState(()=>days=v??10),title:const Text('10 maalmood — 15,000 SLSH')),
+        RadioListTile<int>(value:30,groupValue:days,onChanged:(v)=>setState(()=>days=v??30),title:const Text('30 maalmood — 50,000 SLSH')),
+        const Divider(height:24),
+        DropdownButtonFormField<String>(value:provider,decoration:const InputDecoration(labelText:'Habka lacag-bixinta'),items:const ['Telesom','Somtel'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>setState(()=>provider=v??'Telesom')),
+        const SizedBox(height:10),
+        Text('WADARTA: $amount SLSH',style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold,color:green)),
+        const SizedBox(height:10),
+        FilledButton.icon(onPressed:sending?null:sendNow,style:FilledButton.styleFrom(backgroundColor:green),icon:const Icon(Icons.send),label:sending?const Text('WAA LA DIRAY'):const Text('SEND NOW')),
+        const Divider(height:28),
+        const Text('CODSIYADAYDA',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
+        if(requests.isEmpty)const Text('Weli codsi xayeysiis ma aadan dirin.'),
+        ...requests.map((r)=>Card(child:ListTile(title:Text('Booska ${r['slot_number']} • ${r['plan_days']} maalmood'),subtitle:Text('${r['amount_slsh']} SLSH • ${r['provider']} • ${r['sender_phone']}\nXaaladda: ${r['status']}'+(r['starts_at']==null?'':'\nBilow: ${fmt(r['starts_at'])} • Dhacaya: ${fmt(r['expires_at'])}'))))),
+      ]));
+  }
+}
+
+class AdminPromotionPage extends StatefulWidget {
+  const AdminPromotionPage({super.key,required this.token});
+  final String token;
+  @override
+  State<AdminPromotionPage> createState()=>_AdminPromotionPageState();
+}
+class _AdminPromotionPageState extends State<AdminPromotionPage>{
+  List<Map<String,dynamic>> rows=[];
+  bool loading=true;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {setState(()=>loading=true);try{final x=await SalonApi.adminPromotionRequests(widget.token);if(mounted)setState(()=>{rows=x,loading=false});}catch(e){if(mounted){setState(()=>loading=false);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}}
+  Future<void> review(Map<String,dynamic> row,String status) async {try{await SalonApi.reviewPromotion(widget.token,row['id'].toString(),status);await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
+  @override
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('XAQIIJINTA XAYEYSIISKA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):rows.isEmpty?const Center(child:Text('Weli codsi lacag-bixin xayeysiis ah ma jiro.')):ListView(padding:const EdgeInsets.all(14),children:[
+      ...rows.map((r)=>Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text((r['merchant_name']??'Meherad').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17)),
+        Text('Qaybta: ${r['category']} • Booska: ${r['slot_number']}'),
+        Text('Muddada: ${r['plan_days']} maalmood • Lacagta: ${r['amount_slsh']} SLSH'),
+        Text('Habka: ${r['provider']} • Lambarka laga diray: ${r['sender_phone']}'),
+        Text('Codsiga: ${r['created_at']} • Xaalad: PENDING'),
+        Wrap(spacing:8,children:[
+          FilledButton(onPressed:()=>review(r,'APPROVED'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('Xaqiiji lacagta')),
+          OutlinedButton(onPressed:()=>review(r,'REJECTED'),child:const Text('Diid codsiga')),
+        ])
+      ])))),
+    ]));
+}
 
 class OwnerRentalPage extends StatefulWidget {
   const OwnerRentalPage({super.key,required this.token});
@@ -1797,6 +1930,9 @@ class AdminPaymentSettingsPage extends StatefulWidget {
   State<AdminPaymentSettingsPage> createState()=>_AdminPaymentSettingsPageState();
 }
 class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
+  final promoTelesom=TextEditingController(text:'63123456');
+  final promoSomtel=TextEditingController(text:'651233567');
+
   List<Map<String,dynamic>> merchants=[];
   bool loading=true;
   String? error;
@@ -1807,6 +1943,9 @@ class _AdminPaymentSettingsPageState extends State<AdminPaymentSettingsPage>{
     try{
       final p=await SalonApi.adminMerchants(widget.token);
       final rate=await SalonApi.exchangeRate();
+      final promo=await SalonApi.promotionConfig();
+      promoTelesom.text=(promo['telesomNumber']??'63123456').toString();
+      promoSomtel.text=(promo['somtelNumber']??'651233567').toString();
       if(mounted)setState(()=>{merchants=p,fx.text=rate?.toString()??'',loading=false,error=null});
     }catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
   }
