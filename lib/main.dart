@@ -209,11 +209,11 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Gelitaanka meheraddu wuu fashilmay');
     return b['token'].toString();
   }
-  static Future<List<Map<String,dynamic>>> ownerStaff(String token) async {
+  static Future<Map<String,dynamic>> ownerStaff(String token) async {
     final r=await http.get(Uri.parse('$baseUrl/api/owner/staff'),headers:{'Authorization':'Bearer $token'});
     final b=jsonDecode(r.body) as Map<String,dynamic>;
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama soo qaadi karin');
-    return (b['staff'] as List).cast<Map<String,dynamic>>();
+    return b;
   }
   static Future<List<Map<String,dynamic>>> publicStaff(String merchantId) async {
     final r=await http.get(Uri.parse('$baseUrl/api/merchants/$merchantId/staff'));
@@ -418,7 +418,7 @@ class _HomePageState extends State<HomePage> {
   Timer? featuredTimer;
   @override
   void initState(){
-    super.initState(); loadFeatured(); loadSelectedCity();
+    super.initState(); loadFeatured(); loadSelectedCity(); loadSalons();
     featuredTimer=Timer.periodic(const Duration(seconds:3),(_){
       if(!mounted||featured.length<2||!featuredController.hasClients)return;
       featuredPage=(featuredPage+1)%featured.length;
@@ -428,6 +428,34 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose(){featuredTimer?.cancel();featuredController.dispose();super.dispose();}
   Future<void> loadSelectedCity() async {final p=await SharedPreferences.getInstance();final saved=p.getString('selected_city');if(mounted&&activeCities.contains(saved))setState(()=>selectedCity=saved!);}
+
+  Future<void> loadSalons() async {
+    try {
+      final rows=await SalonApi.publicMerchants('SALON');
+      final list=rows.map((m)=>Salon(
+        m['id'].toString(),
+        (m['name']??'Salon').toString(),
+        (m['location']??'Hargeysa').toString(),
+        ['Timaha','Qurxinta wajiga','Daryeelka jirka','Ciddiyaha','Makeup','Adeegyo kale'],
+        whatsappNumber:(m['owner_whatsapp']??'').toString(),
+        staffLimit:int.tryParse((m['staff_limit']??5).toString())??5,
+      )).toList();
+      if(mounted)setState(()=>{salons..clear()..addAll(list),salonsLoading=false});
+    } catch(e) {
+      if(mounted)setState(()=>salonsLoading=false);
+    }
+  }
+  Future<void> loadSalonStaff(String merchantId) async {
+    if(staffByMerchant.containsKey(merchantId)||staffLoadingIds.contains(merchantId))return;
+    setState(()=>staffLoadingIds.add(merchantId));
+    try {
+      final rows=await SalonApi.publicStaff(merchantId);
+      if(mounted)setState(()=>staffByMerchant[merchantId]=rows);
+    } catch(_) {
+      if(mounted)setState(()=>staffByMerchant[merchantId]=[]);
+    }
+    if(mounted)setState(()=>staffLoadingIds.remove(merchantId));
+  }
   Future<void> chooseCity() async {
     final value=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Dooro magaaladaada'),content:Column(mainAxisSize:MainAxisSize.min,children:[const Text('Magaalooyinka shaqaynaya'),...activeCities.map((city)=>ListTile(leading:const Icon(Icons.location_city,color:green),title:Text(city),onTap:()=>Navigator.pop(ctx,city))),const Divider(),const Text('Weli lama diiwaangelin'),...upcomingCities.map((city)=>ListTile(enabled:false,leading:const Icon(Icons.lock_outline),title:Text(city),subtitle:const Text('Dib ayaa loogu dari doonaa')))])));
     if(value==null)return;final p=await SharedPreferences.getInstance();await p.setString('selected_city',value);if(mounted)setState(()=>selectedCity=value);
@@ -573,8 +601,10 @@ class _HomePageState extends State<HomePage> {
   }
   int opened = -1;
   int selectedSection = -1;
-  final List<Salon> salons = List.generate(20, (i) => Salon('Salon ' + (i + 1).toString(), 'Hargeysa',
-    ['Timaha','Qurxinta wajiga','Daryeelka jirka','Ciddiyaha','Makeup','Adeegyo kale']));
+  final List<Salon> salons = [];
+  bool salonsLoading = true;
+  final Map<String,List<Map<String,dynamic>>> staffByMerchant = {};
+  final Set<String> staffLoadingIds = {};
   Future<String?> ask(String title, String hint) async {
     final c = TextEditingController();
     return showDialog<String>(context: context, builder: (ctx) => AlertDialog(
@@ -583,13 +613,40 @@ class _HomePageState extends State<HomePage> {
         FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Kaydi'))]));
   }
   Future<void> addSalon() async {
-    final n = await ask('Ku dar Salon', 'Magaca salon-ka');
-    if (n == null || n.isEmpty || !mounted) return;
-    final l = await ask('Goobta Salon-ka', 'Magaalada / xaafadda');
-    if (!mounted) return;
-    final w = await ask('WhatsApp-ka Salon-ka', 'Tusaale: 25263xxxxxxx');
-    if (!mounted) return;
-    setState(() => salons.add(Salon(n, l ?? 'Hargeysa', ['Timaha','Qurxinta wajiga','Ciddiyaha'], whatsappNumber: w ?? '')));
+    if(adminToken==null)return;
+    final n=await ask('Ku dar Salon','Magaca salon-ka');
+    if(n==null||n.isEmpty||!mounted)return;
+    final l=await ask('Goobta Salon-ka','Magaalada / xaafadda');
+    if(!mounted)return;
+    final w=await ask('WhatsApp-ka Salon-ka','Tusaale: 25263xxxxxxx');
+    if(!mounted)return;
+    final username=await ask('Akoonka meheradda','Username-ka uu ku geli doono');
+    if(username==null||username.trim().isEmpty||!mounted)return;
+    final password=await ask('Password-ka meheradda','Ugu yaraan 10 xaraf');
+    if(password==null||password.length<10||!mounted)return;
+    try {
+      final id=await SalonApi.createMerchant(adminToken!,{'category':'SALON','name':n.trim(),'location':l??'Hargeysa','ownerWhatsApp':w??''});
+      await SalonApi.createOwner(adminToken!,id,username.trim(),password);
+      await loadSalons();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda iyo akoonkeeda waa la diiwaangeliyey.')));
+    } catch(e) {
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Diiwaangelintu way fashilantay: $e')));
+    }
+  }
+  Future<void> editStaffLimit(Salon salon) async {
+    if(adminToken==null)return;
+    final c=TextEditingController(text:salon.staffLimit.toString());
+    final value=await showDialog<int>(context:context,builder:(ctx)=>AlertDialog(
+      title:Text('Xadka hablaha — '+salon.name),
+      content:TextField(controller:c,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Tirada ugu badan',border:OutlineInputBorder())),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,int.tryParse(c.text.trim())),child:const Text('Kaydi'))]));
+    if(value==null)return;
+    if(value<1||value>100){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Xadka waa inuu u dhexeeyaa 1 ilaa 100.')));return;}
+    try{await SalonApi.updateStaffLimit(adminToken!,salon.id,value);await loadSalons();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Xadka hablaha waa la beddelay.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  void openMerchantLogin() {
+    Navigator.push(context,MaterialPageRoute(builder:(_)=>const MerchantLoginPage()));
   }
   Future<void> rename(int i) async {
     final n = await ask('Beddel magaca', salons[i].name);
@@ -608,6 +665,7 @@ class _HomePageState extends State<HomePage> {
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentSettingsPage(token:adminToken!))),icon:const Icon(Icons.settings_applications),tooltip:'Hababka lacagta iyo sarifka'),
         IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Dalabyadayda'),
+        IconButton(onPressed: openMerchantLogin, icon: const Icon(Icons.storefront), tooltip: 'Gelitaanka meheradda'),
         IconButton(onPressed: openAdminTools, icon: const Icon(Icons.admin_panel_settings), tooltip: 'Admin')]),
     body: ListView(padding: const EdgeInsets.all(14), children: [
       Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
@@ -636,7 +694,8 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 6), const Text('SALON-LADA', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8), OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'SALON'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
         const SizedBox(height: 10),
-        if(salons.where((s)=>s.location.trim().toLowerCase()==selectedCity.toLowerCase()).isEmpty) Padding(padding:const EdgeInsets.all(18),child:Text('Magaalada $selectedCity weli lagama diiwaangelin meherado salon ah.',textAlign:TextAlign.center))
+        if(salonsLoading) const Center(child:Padding(padding:EdgeInsets.all(18),child:CircularProgressIndicator(color:green)))
+        else if(salons.where((s)=>s.location.trim().toLowerCase()==selectedCity.toLowerCase()).isEmpty) Padding(padding:const EdgeInsets.all(18),child:Text('Magaalada $selectedCity weli lagama diiwaangelin meherado salon ah.',textAlign:TextAlign.center))
         else Wrap(spacing:10,runSpacing:10,children:salons.asMap().entries.where((e)=>e.value.location.trim().toLowerCase()==selectedCity.toLowerCase()).map((e)=>SizedBox(width:(MediaQuery.of(context).size.width-48)/2,child:salonCard(e.key))).toList()),
       ],
       if (selectedSection == 1) ...[
@@ -715,7 +774,7 @@ class _HomePageState extends State<HomePage> {
   Widget salonCard(int i) {
     final s = salons[i]; final isOpen = opened == i;
     return Card(margin: const EdgeInsets.only(bottom: 11), clipBehavior: Clip.antiAlias, child: Column(children: [
-      InkWell(onTap: () => setState(() => opened = isOpen ? -1 : i), child: Row(children: [
+      InkWell(onTap: () {setState(() => opened = isOpen ? -1 : i);if(!isOpen)loadSalonStaff(s.id);}, child: Row(children: [
         Container(width: 98, height: 88, color: cream, child: const Icon(Icons.storefront, color: green, size: 42)),
         Expanded(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 4),
@@ -723,13 +782,34 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 5), Text(isOpen ? 'Qari adeegyada' : 'Taabo si aad adeegyada u aragto', style: const TextStyle(color: green, fontSize: 12))]))),
         Icon(isOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: green), const SizedBox(width: 8)])),
       if (admin) Wrap(children: [
-        TextButton.icon(onPressed: () => rename(i), icon: const Icon(Icons.edit, size: 16), label: const Text('Magac beddel')),
         TextButton.icon(onPressed: () => editSalonPhone(i), icon: const Icon(Icons.phone, size: 16), label: const Text('Lambarka')),
-        TextButton.icon(onPressed: () => setState(() => salons.removeAt(i)), icon: const Icon(Icons.delete_outline, size: 16), label: const Text('Tirtir'))]),
-      if (isOpen) ...[const Divider(height: 1), ...s.services.map((service) => serviceTile(i, service)),
+        TextButton.icon(onPressed: () => editStaffLimit(s), icon: const Icon(Icons.groups, size: 16), label: Text('Xadka hablaha: '+s.staffLimit.toString()))]),
+      if (isOpen) ...[const Divider(height: 1),
+        if(staffLoadingIds.contains(s.id)) const Padding(padding:EdgeInsets.all(14),child:Center(child:CircularProgressIndicator(color:green)))
+        else if((staffByMerchant[s.id]??[]).isEmpty) const Padding(padding:EdgeInsets.all(12),child:Text('Meheraddan wali ma diiwaangelin hablaha shaqeeya.'))
+        else ...(staffByMerchant[s.id]??[]).map((person)=>staffCard(s,person)),
+        ...s.services.map((service) => serviceTile(i, service)),
         if (admin) TextButton.icon(onPressed: () async { final v = await ask('Ku dar adeeg', 'Magaca adeegga'); if (v != null && v.isNotEmpty) setState(() => s.services.add(v)); },
           icon: const Icon(Icons.add), label: const Text('Ku dar adeeggan salon-kan'))],
     ]));
+  }
+
+  Widget staffCard(Salon salon,Map<String,dynamic> person) {
+    List<dynamic> services=[];
+    try{services=jsonDecode((person['services_json']??'[]').toString()) as List;}catch(_){}
+    return Card(margin:const EdgeInsets.symmetric(horizontal:10,vertical:6),child:Padding(padding:const EdgeInsets.all(10),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      ClipRRect(borderRadius:BorderRadius.circular(10),child:salonImage((person['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:Container(width:76,height:86,color:cream,child:const Icon(Icons.person,color:green,size:34)))),
+      const SizedBox(width:10),
+      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text((person['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:15)),
+        if((person['title']??'').toString().isNotEmpty)Text(person['title'].toString(),style:const TextStyle(color:Colors.black54,fontSize:12)),
+        const SizedBox(height:6),
+        Wrap(spacing:5,runSpacing:4,children:services.map((v)=>OutlinedButton(
+          style:OutlinedButton.styleFrom(padding:const EdgeInsets.symmetric(horizontal:8,vertical:3),minimumSize:const Size(0,30)),
+          onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>SalonBookingPage(salonName:salon.name,serviceName:v.toString(),whatsappNumber:salon.whatsappNumber,staffId:person['id'].toString(),staffName:person['name'].toString()))),
+          child:Text('BALLAN: '+v.toString(),style:const TextStyle(fontSize:10)))).toList())
+      ]))
+    ])));
   }
   Widget serviceTile(int salonIndex, String service) => ExpansionTile(
     leading: const Icon(Icons.spa_outlined, color: green), title: Text(service, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -1169,10 +1249,12 @@ class _CakePageState extends State<CakePage> {
 
 
 class SalonBookingPage extends StatefulWidget {
-  const SalonBookingPage({super.key, required this.salonName, required this.serviceName, this.whatsappNumber = ''});
+  const SalonBookingPage({super.key, required this.salonName, required this.serviceName, this.whatsappNumber = '', this.staffId, this.staffName});
   final String salonName;
   final String serviceName;
   final String whatsappNumber;
+  final String? staffId;
+  final String? staffName;
   @override
   State<SalonBookingPage> createState() => _SalonBookingPageState();
 }
@@ -1243,6 +1325,8 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
         customerPhone: phone.text.trim(),
         customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
         details: {'salon': widget.salonName, 'service': widget.serviceName,
+          if(widget.staffId!=null)'staffId':widget.staffId,
+          if(widget.staffName!=null)'staffName':widget.staffName,
           'date': selectedDate!.toIso8601String().split('T').first,
           'time': selectedTime!.format(context), 'notes': notes.text.trim()},
       );
@@ -1260,6 +1344,8 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       'id': DateTime.now().microsecondsSinceEpoch.toString(),
       'salon': widget.salonName,
       'service': widget.serviceName,
+      if(widget.staffId!=null)'staffId':widget.staffId,
+      if(widget.staffName!=null)'staffName':widget.staffName,
       'customerName': name.text.trim(),
       'customerPhone': phone.text.trim(),
       'date': dateText,
@@ -1277,13 +1363,13 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Codsiga waa la kaydiyey'),
-        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName + ' waa la kaydiyey. Hadda dooro WhatsApp ama wicitaan.'),
+        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName + (widget.staffName==null?'':' — '+widget.staffName) + ' waa la diray. Sug xaqiijinta meheradda.'),
         actions: [
           FilledButton(
             onPressed: () {
               Navigator.pop(dialogContext);
               showBookingContactOptions(context, widget.whatsappNumber,
-                'BALLAN SALON\nSalon: ' + widget.salonName + '\nAdeeg: ' + widget.serviceName + '\nMagac: ' + name.text.trim() + '\nTelefoon: ' + phone.text.trim() + '\nTaariikh: ' + dateText + '\nWaqti: ' + selectedTime!.format(context) + '\nFaahfaahin: ' + notes.text.trim());
+                'BALLAN SALON\nSalon: ' + widget.salonName + '\nAdeeg: ' + widget.serviceName + (widget.staffName==null?'':'\nShaqaalaha: '+widget.staffName!) + '\nMagac: ' + name.text.trim() + '\nTelefoon: ' + phone.text.trim() + '\nTaariikh: ' + dateText + '\nWaqti: ' + selectedTime!.format(context) + '\nFaahfaahin: ' + notes.text.trim());
             },
             child: const Text('WHATSAPP / CALL NOW'),
           ),
@@ -1311,6 +1397,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
                 Text(widget.salonName, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: green)),
                 const SizedBox(height: 5),
                 Text('Adeegga: ' + widget.serviceName, style: const TextStyle(color: green)),
+                if(widget.staffName!=null)Padding(padding:const EdgeInsets.only(top:5),child:Text('Shaqaalaha: '+widget.staffName!,style:const TextStyle(color:green,fontWeight:FontWeight.bold))),
               ]),
             ),
             const SizedBox(height: 18),
@@ -1346,6 +1433,110 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
   );
 }
 
+
+
+class MerchantLoginPage extends StatefulWidget {
+  const MerchantLoginPage({super.key});
+  @override
+  State<MerchantLoginPage> createState()=>_MerchantLoginPageState();
+}
+class _MerchantLoginPageState extends State<MerchantLoginPage> {
+  final username=TextEditingController(),password=TextEditingController();
+  bool loading=false;
+  @override
+  void dispose(){username.dispose();password.dispose();super.dispose();}
+  Future<void> login() async {
+    if(username.text.trim().isEmpty||password.text.isEmpty)return;
+    setState(()=>loading=true);
+    try{
+      final token=await SalonApi.ownerLogin(username.text.trim(),password.text);
+      if(!mounted)return;
+      Navigator.pushReplacement(context,MaterialPageRoute(builder:(_)=>OwnerStaffPage(token:token)));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+    if(mounted)setState(()=>loading=false);
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('GELITAANKA MEHERADDA'),backgroundColor:green,foregroundColor:Colors.white),body:ListView(padding:const EdgeInsets.all(20),children:[
+    const Icon(Icons.storefront,color:green,size:58),const SizedBox(height:18),
+    TextField(controller:username,decoration:const InputDecoration(labelText:'Username-ka meheradda',border:OutlineInputBorder())),
+    const SizedBox(height:12),TextField(controller:password,obscureText:true,decoration:const InputDecoration(labelText:'Password',border:OutlineInputBorder())),
+    const SizedBox(height:18),FilledButton(onPressed:loading?null:login,style:FilledButton.styleFrom(backgroundColor:green),child:loading?const CircularProgressIndicator(color:Colors.white):const Text('GAL'))
+  ]));
+}
+
+class OwnerStaffPage extends StatefulWidget {
+  const OwnerStaffPage({super.key,required this.token});
+  final String token;
+  @override
+  State<OwnerStaffPage> createState()=>_OwnerStaffPageState();
+}
+class _OwnerStaffPageState extends State<OwnerStaffPage> {
+  Map<String,dynamic> data={};
+  bool loading=true;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    setState(()=>loading=true);
+    try{final d=await SalonApi.ownerStaff(widget.token);if(mounted)setState(()=>{data=d,error=null,loading=false});}
+    catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  Future<void> editStaff([Map<String,dynamic>? person]) async {
+    final name=TextEditingController(text:(person?['name']??'').toString());
+    final title=TextEditingController(text:(person?['title']??'').toString());
+    List<dynamic> existing=[];try{existing=jsonDecode((person?['services_json']??'[]').toString()) as List;}catch(_){}
+    final services=TextEditingController(text:existing.join(', '));
+    String? photoData;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:Text(person==null?'Diiwaangeli gabar shaqaale':'Wax ka beddel shaqaalaha'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:name,decoration:const InputDecoration(labelText:'Magaca gabadha')),
+        TextField(controller:title,decoration:const InputDecoration(labelText:'Shaqada / xirfadda')),
+        TextField(controller:services,maxLines:2,decoration:const InputDecoration(labelText:'Adeegyada ay qabato (comma ku kala saar)')),
+        const SizedBox(height:10),
+        OutlinedButton.icon(onPressed:()async{try{final p=await pickStaffImage();if(p!=null)refresh(()=>photoData=p);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.photo_library),label:Text(photoData==null?(person==null?'Dooro sawirka gabadha':'Beddel sawirka'): 'Sawirka waa la doortay')),
+        if(photoData!=null)Padding(padding:const EdgeInsets.only(top:8),child:Image.memory(base64Decode(photoData!.split(',').last),height:90,fit:BoxFit.cover)),
+        if(person!=null&&photoData==null)Padding(padding:const EdgeInsets.only(top:8),child:Image.network((person['photoUrl']??'').toString(),height:90,errorBuilder:(_,__,___)=>const Icon(Icons.person)))
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))]
+    )));
+    if(ok!=true||!mounted)return;
+    final serviceList=services.text.split(',').map((x)=>x.trim()).where((x)=>x.isNotEmpty).toList();
+    if(name.text.trim().isEmpty||serviceList.isEmpty||(person==null&&photoData==null)){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Magac, adeegyo iyo sawir geli.')));return;}
+    final payload=<String,dynamic>{'name':name.text.trim(),'title':title.text.trim(),'services':serviceList,if(photoData!=null)'photoData':photoData};
+    try{
+      if(person==null)await SalonApi.addOwnerStaff(widget.token,payload);
+      else await SalonApi.updateOwnerStaff(widget.token,person['id'].toString(),payload);
+      await load();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Xogta shaqaalaha waa la kaydiyey.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  Future<void> removeStaff(Map<String,dynamic> p) async {
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Ka saar shaqaalaha?'),content:Text('Ma hubtaa inaad ka saarayso '+p['name'].toString()+'?'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Maya')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Haa'))]));
+    if(ok!=true)return;
+    try{await SalonApi.deleteOwnerStaff(widget.token,p['id'].toString());await load();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  @override
+  Widget build(BuildContext context){
+    final staff=(data['staff'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
+    final limit=int.tryParse((data['staffLimit']??5).toString())??5;
+    final name=(data['merchantName']??'Meheraddaada').toString();
+    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+      floatingActionButton:FloatingActionButton.extended(onPressed:staff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
+      body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
+        Text('SHAQAALAHA: '+staff.where((x)=>x['active']!=0&&x['active']!='0').length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
+        const SizedBox(height:8),
+        if(staff.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Weli gabdho shaqaale ah lama diiwaangelin.')),
+        ...staff.where((x)=>x['active']!=0&&x['active']!='0').map((p)=>Card(child:ListTile(
+          leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:const Icon(Icons.person,color:green))),
+          title:Text((p['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
+          subtitle:Text((p['title']??'').toString()+'\n'+((jsonDecode((p['services_json']??'[]').toString()) as List).join(', '))),
+          isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')editStaff(p);if(v=='delete')removeStaff(p);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('Wax ka beddel')),PopupMenuItem(value:'delete',child:Text('Ka saar'))])
+        )))
+      ]));
+  }
+}
 
 class CustomerOrdersPage extends StatefulWidget {
   const CustomerOrdersPage({super.key});
