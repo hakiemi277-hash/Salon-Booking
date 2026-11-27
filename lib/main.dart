@@ -1186,7 +1186,7 @@ class _FullPackagesPageState extends State<FullPackagesPage> {
     String category=(p?['category']??widget.category??'SALON').toString();
     String currency=(p?['currency']??'USD').toString();
     String merchantId=(p?['merchant_id']??merchants.first['id']).toString();
-    bool active=p==null?true:(p['active']!=0&&p['active']!=false);
+    bool active=p==null?true:(p['active']!=0&&p['active']!='0'&&p['active']!=false);
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
       title:Text(p==null?'Ku dar Full Package':'Wax ka beddel Full Package'),
       content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
@@ -1348,8 +1348,9 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
     }
     setState(() => saving = true);
     final p = await SharedPreferences.getInstance();
+    late final Map<String,dynamic> bookingResult;
     try {
-      await SalonApi.createBooking(
+      bookingResult = await SalonApi.createBooking(
         category: 'KIRAYSO',
         customerName: customer.text.trim(),
         customerPhone: phone.text.trim(),
@@ -1367,22 +1368,22 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
     }
     final records = p.getStringList('rental_booking_requests') ?? <String>[];
     final request = <String, dynamic>{
-      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'id': (bookingResult['id'] ?? DateTime.now().microsecondsSinceEpoch).toString(),
       'type': 'RENTAL', 'category': widget.category,
       'item': item.text.trim(), 'size': size.text.trim(),
       'customerName': customer.text.trim(), 'customerPhone': phone.text.trim(),
       'startDate': startDate!.toIso8601String().split('T').first,
       'endDate': endDate!.toIso8601String().split('T').first,
       'location': location.text.trim(), 'notes': notes.text.trim(),
-      'status': 'Sugaya xaqiijinta', 'createdAt': DateTime.now().toIso8601String(),
+      'status': (bookingResult['status'] ?? 'Sugaya jawaab').toString(), 'createdAt': DateTime.now().toIso8601String(),
     };
     records.add(jsonEncode(request));
     await p.setStringList('rental_booking_requests', records);
     if (!mounted) return;
     setState(() => saving = false);
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
-      title: const Text('Codsiga kiraysiga waa la kaydiyey'),
-      content: const Text('Codsiga waxaa lagu kaydiyey telefoonkan oo keliya. Weli looma dirin meherad ama dashboard maamul.'),
+      title: const Text('Codsiga kiraysiga waa la diray'),
+      content: const Text('Codsigaaga si guul leh ayaa loogu diray nidaamka SALON BOOKING. Meheraddu waxay ka jawaabi doontaa marka ay hubiso helitaanka agabka.'),
       actions: [FilledButton(onPressed: () {
         Navigator.pop(ctx);
         Navigator.pop(context);
