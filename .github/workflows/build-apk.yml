@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'lib/**'
+      - 'assets/**'
       - 'pubspec.yaml'
       - '.github/workflows/**'
 
@@ -25,7 +26,7 @@ jobs:
           cache: true
       - name: Generate Android project files
         run: flutter create . --platforms=android
-      - name: Ensure Android internet permission
+      - name: Ensure Android internet permission and app name
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -34,20 +35,15 @@ jobs:
           permission = '<uses-permission android:name="android.permission.INTERNET"/>'
           if permission not in s:
               s = s.replace('<application', permission + '\n    <application', 1)
-          p.write_text(s)
-          PY
-      - name: Set Android app display name
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("android/app/src/main/AndroidManifest.xml")
-          s = p.read_text()
           s = s.replace('android:label="salon_booking"', 'android:label="SALON BOOKING"')
           s = s.replace("android:label='salon_booking'", "android:label='SALON BOOKING'")
+          s = s.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher"')
           p.write_text(s)
           PY
       - name: Install dependencies
         run: flutter pub get
+      - name: Generate app launcher icon
+        run: dart run flutter_launcher_icons
       - name: Build release APK
         run: flutter build apk --release
       - name: Upload APK
