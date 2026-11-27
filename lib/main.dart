@@ -1852,7 +1852,22 @@ class _OwnerPromotionPageState extends State<OwnerPromotionPage>{
   }
   int get amount=>days==7?10000:days==10?15000:50000;
   String fmt(dynamic value){if(value==null)return '—';try{return DateTime.parse(value.toString()).toLocal().toString().substring(0,16);}catch(_){return value.toString();}}
+  Future<void> showOccupiedSlotMessage() async {
+    if(!mounted)return;
+    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('BOOSKAN WAA LA KIRAYSTAY'),
+      content:const Text('MACMIIL BOOSKAN WUU KIRAYSAN YAHAY FADLAN BOOS KALE DOORO AMA SUG INTAY MUDDADU KA DHAMAANAYSO KIRAYSTAHA BOOSKAN'),
+      actions:[FilledButton(onPressed:()=>Navigator.pop(ctx),child:const Text('HAGAAG'))],
+    ));
+  }
   Future<void> sendNow() async {
+    final currentSlots=(data['slots'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
+    final selected=currentSlots.where((x)=>(int.tryParse((x['slot']??0).toString())??-1)==slot).toList();
+    if(selected.isEmpty||selected.first['occupied']==true){
+      await showOccupiedSlotMessage();
+      await load();
+      return;
+    }
     final payment=(data['payment'] as Map?)?.cast<String,dynamic>()??{};
     final number=(provider=='Telesom'?payment['telesomNumber']:payment['somtelNumber'])?.toString()??'';
     final ussd=provider=='Telesom'?'*220*$number*$amount#':'*770*$number*$amount#';
@@ -1879,7 +1894,7 @@ class _OwnerPromotionPageState extends State<OwnerPromotionPage>{
         const SizedBox(height:6),
         const Text('Boosaska la kiraystay waxay muujinayaan muddada ay ku egyihiin. Waxaad codsan kartaa booska marka uu xoroobo; bilowga muddadaada wuxuu noqonayaa marka Admin-ku xaqiijiyo lacagta.'),
         const SizedBox(height:10),
-        ...slots.map((x){final n=int.tryParse((x['slot']??0).toString())??1;final busy=x['occupied']==true;return Card(child:RadioListTile<int>(value:n,groupValue:slot,onChanged:(v)=>setState(()=>slot=v??1),title:Text('BOOSKA $n',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text(busy?'Hadda waa la kiraystay • Muddada: ${x['planDays']??'—'} maalmood • Wuxuu dhacayaa: ${fmt(x['expiresAt'])}\nWaxaad qabsan kartaa laga bilaabo: ${fmt(x['nextAvailableAt'])}':'Waa bannaan yahay • Hadda ayaad codsan kartaa'),isThreeLine:busy));}),
+        ...slots.map((x){final n=int.tryParse((x['slot']??0).toString())??1;final busy=x['occupied']==true;return Card(child:RadioListTile<int>(value:n,groupValue:slot,onChanged:(v){if(busy){showOccupiedSlotMessage();return;}setState(()=>slot=v??1);},title:Text('BOOSKA $n',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text(busy?'WAA LA KIRAYSTAY • Wuxuu dhacayaa: ${fmt(x['expiresAt'])}':'Waa bannaan yahay • Hadda ayaad codsan kartaa'),isThreeLine:busy));}),
         const Divider(height:28),
         const Text('MUDDADA XAYEYSIISKA',style:TextStyle(fontWeight:FontWeight.bold,color:green)),
         RadioListTile<int>(value:7,groupValue:days,onChanged:(v)=>setState(()=>days=v??7),title:const Text('7 maalmood — 10,000 SLSH')),
