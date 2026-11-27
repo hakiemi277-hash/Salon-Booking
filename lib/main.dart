@@ -1680,7 +1680,7 @@ class _OwnerPromotionPageState extends State<OwnerPromotionPage>{
     final requests=(data['requests'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
     return Scaffold(appBar:AppBar(title:const Text('BOOSASKA XAYEYSIISKA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):ListView(padding:const EdgeInsets.all(14),children:[
-        const Text('DOORO MID KA MID AH 4-TA BOOS',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
+        const Text('DOORO MID KA MID AH 6-DA BOOS',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
         const SizedBox(height:6),
         const Text('Boosaska la kiraystay waxay muujinayaan muddada ay ku egyihiin. Waxaad codsan kartaa booska marka uu xoroobo; bilowga muddadaada wuxuu noqonayaa marka Admin-ku xaqiijiyo lacagta.'),
         const SizedBox(height:10),
