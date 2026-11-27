@@ -30,6 +30,12 @@ class SalonApi {
     final b=jsonDecode(r.body) as Map<String,dynamic>;
     if(r.statusCode!=201 || b['ok']!=true) throw Exception(b['error']??'Kaydintu way fashilantay');
   }
+  static Future<void> updateFeaturedProduct(String token,String id,Map<String,dynamic> p) async {
+    final r=await http.put(Uri.parse('$baseUrl/api/admin/featured-products/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(p));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200 || b['ok']!=true) throw Exception(b['error']??'Wax ka beddelku wuu fashilmay');
+  }
+
   static Future<void> deleteFeaturedProduct(String token,String id) async {
     final r=await http.delete(Uri.parse('$baseUrl/api/admin/featured-products/$id'),headers:{'Authorization':'Bearer $token'});
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -322,6 +328,30 @@ class _HomePageState extends State<HomePage> {
     try{await SalonApi.addFeaturedProduct(adminToken!,{'title':title.text.trim(),'description':desc.text.trim(),'price':price.text.trim(),'currency':currency,'category':category,'imageUrl':img.text.trim()});await loadFeatured();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Alaabta waa la daabacay.')));}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
+  Future<void> editFeatured(Map<String,dynamic> p) async {
+    final title=TextEditingController(text:(p['title']??'').toString());
+    final desc=TextEditingController(text:(p['description']??'').toString());
+    final price=TextEditingController(text:(p['price']??'').toString());
+    final img=TextEditingController(text:(p['image_url']??'').toString());
+    String category=(p['category']??'SALON').toString(),currency=(p['currency']??'USD').toString();
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:const Text('Wax ka beddel alaabta'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:title,decoration:const InputDecoration(labelText:'Magaca alaabta')),
+        TextField(controller:desc,maxLines:2,decoration:const InputDecoration(labelText:'Faahfaahin')),
+        TextField(controller:price,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Qiimaha')),
+        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:['SALON','CAKES','DECORATION','KIRAYSO'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??'SALON')),
+        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??'USD')),
+        TextField(controller:img,decoration:const InputDecoration(labelText:'Sawirka HTTPS URL')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))])));
+    if(ok!=true||title.text.trim().isEmpty||!mounted)return;
+    try{
+      await SalonApi.updateFeaturedProduct(adminToken!,p['id'].toString(),{'title':title.text.trim(),'description':desc.text.trim(),'price':price.text.trim(),'currency':currency,'category':category,'imageUrl':img.text.trim()});
+      await loadFeatured();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Alaabta waa la cusboonaysiiyey.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
   Future<void> removeFeatured(Map<String,dynamic> p) async {
     try{await SalonApi.deleteFeaturedProduct(adminToken!,p['id'].toString());await loadFeatured();}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
@@ -340,7 +370,7 @@ class _HomePageState extends State<HomePage> {
             Text(p['category']??'',style:const TextStyle(color:green,fontSize:11)),
             if(p['price']!=null)Text('${p['price']} ${p['currency']??'USD'}',style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
             Text(p['description']??'',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:11)),
-            if(admin)Align(alignment:Alignment.centerRight,child:IconButton(onPressed:()=>removeFeatured(p),icon:const Icon(Icons.delete_outline,color:Colors.red))),
+            if(admin)Align(alignment:Alignment.centerRight,child:Wrap(children:[IconButton(tooltip:'Wax ka beddel',onPressed:()=>editFeatured(p),icon:const Icon(Icons.edit,color:green)),IconButton(tooltip:'Tirtir',onPressed:()=>removeFeatured(p),icon:const Icon(Icons.delete_outline,color:Colors.red))])),
           ])))
         ])));
       })),
