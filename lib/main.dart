@@ -2038,28 +2038,61 @@ class _AdminStoragePageState extends State<AdminStoragePage>{
     if(n<1024*1024*1024)return '${(n/1024/1024).toStringAsFixed(2)} MB';
     return '${(n/1024/1024/1024).toStringAsFixed(2)} GB';
   }
-  Widget metric(String title,String value,IconData icon)=>Card(child:ListTile(leading:Icon(icon,color:green,size:30),title:Text(title),subtitle:Text(value,style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold))));
+  double ratio(dynamic used,dynamic limit){
+    final u=(used as num?)?.toDouble()??0,l=(limit as num?)?.toDouble()??0;
+    if(l<=0)return 0;
+    return (u/l).clamp(0.0,1.0);
+  }
+  Widget progressCard({required String title,required String used,required String limit,required double value,required String note,IconData icon=Icons.storage}){
+    final percent=(value*100).toStringAsFixed(2);
+    final color=value>=.9?Colors.red:value>=.7?Colors.orange:green;
+    return Card(child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Row(children:[Icon(icon,color:green,size:27),const SizedBox(width:10),Expanded(child:Text(title,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16)))]),
+      const SizedBox(height:10),
+      Text('La isticmaalay: $used',style:const TextStyle(fontSize:16,fontWeight:FontWeight.w700)),
+      Text('Xadka la barbar dhigayo: $limit',style:const TextStyle(color:Colors.black54,fontSize:12)),
+      const SizedBox(height:9),
+      ClipRRect(borderRadius:BorderRadius.circular(8),child:LinearProgressIndicator(value:value,minHeight:11,color:color,backgroundColor:cream)),
+      const SizedBox(height:5),
+      Text('$percent% — $note',style:TextStyle(color:color,fontWeight:FontWeight.w600,fontSize:12)),
+    ])));
+  }
+  Widget metric(String title,String value,IconData icon)=>Card(child:ListTile(leading:Icon(icon,color:green,size:28),title:Text(title),subtitle:Text(value,style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold))));
   @override
   Widget build(BuildContext context){
     final d1=data?['d1'] as Map<String,dynamic>?;
     final r2=data?['r2'] as Map<String,dynamic>?;
+    final d1Storage=d1?['storage'] as Map<String,dynamic>?;
     final tables=(d1?['tables'] as List? ?? const []).cast<Map<String,dynamic>>();
     final groups=(r2?['groups'] as List? ?? const []).cast<Map<String,dynamic>>();
+    final d1Bytes=d1Storage?['bytes'];
+    final d1Free=(d1Storage?['freeLimitBytes'] as num?)?.toDouble()??(500*1024*1024).toDouble();
+    final d1Paid=(d1Storage?['paidLimitBytes'] as num?)?.toDouble()??(10*1024*1024*1024).toDouble();
+    final r2Bytes=(r2?['bytes'] as num?)?.toDouble()??0;
+    final r2Allowance=(r2?['freeMonthlyAllowanceBytes'] as num?)?.toDouble()??(10*1024*1024*1024).toDouble();
+    final records=tables.fold<int>(0,(n,t)=>n+((t['count'] as num?)?.toInt()??0));
     return Scaffold(
-      appBar:AppBar(title:const Text('MAAMULKA STORAGE-KA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
-      body:loading?const Center(child:CircularProgressIndicator()):error!=null?Center(child:Padding(padding:const EdgeInsets.all(20),child:Text(error!,textAlign:TextAlign.center))):RefreshIndicator(
+      appBar:AppBar(title:const Text('MAAMULKA STORAGE-KA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh),tooltip:'Cusboonaysii')]),
+      body:loading?const Center(child:CircularProgressIndicator()):error!=null?Center(child:Padding(padding:const EdgeInsets.all(20),child:Column(mainAxisSize:MainAxisSize.min,children:[Text(error!,textAlign:TextAlign.center),const SizedBox(height:12),FilledButton(onPressed:load,child:const Text('DIB U CUSBOONAYSII'))]))):RefreshIndicator(
         onRefresh:load,child:ListView(padding:const EdgeInsets.all(14),children:[
-          const Text('Kaydka xogta app-ka',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
-          metric('Cloudflare D1 — Database','${tables.length} jadwal • ${tables.fold<int>(0,(n,t)=>n+((t['count'] as num?)?.toInt()??0))} diiwaan',Icons.storage),
-          metric('Cloudflare R2 — Sawirrada oo dhan','${r2?['objects']??0} sawir • ${sizeText(r2?['bytes'])}',Icons.photo_library),
+          const Text('KAYDKA APP-KA OO DHAN',style:TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),
+          const SizedBox(height:8),
+          metric('Cloudflare D1 — Database','${tables.length} jadwal • $records diiwaan',Icons.storage),
+          if(d1Bytes is num)progressCard(title:'D1 — Cabbirka xogta database-ka',used:sizeText(d1Bytes),limit:'500 MB (Free) / 10 GB (Paid)',value:ratio(d1Bytes,d1Free),note:'Boqolleydu waxay barbar dhigaysaa xadka Free. Xadka saxda ahi wuxuu ku xiran yahay qorshaha Cloudflare.',icon:Icons.table_chart)
+          else const Card(child:ListTile(leading:Icon(Icons.info_outline,color:Colors.orange),title:Text('Cabbirka D1 lama heli karin'),subtitle:Text('Tirada diiwaannada waa la helay, balse cabbirka database-ka lama soo celin server-ka.'))),
+          const SizedBox(height:4),
+          const Text('R2 — KAYDKA SAWIRRADA',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold,color:green)),
+          metric('Cloudflare R2 — Sawirrada oo dhan','${r2?['objects']??0} fayl • ${sizeText(r2?['bytes'])}',Icons.photo_library),
+          progressCard(title:'R2 — Isticmaalka hadda',used:sizeText(r2Bytes),limit:'10 GB-month gunno bille ah (Free)',value:ratio(r2Bytes,r2Allowance),note:'R2 ma laha xad kayd oo adag. 10 GB-month waa gunno bilaash ah oo bille ah, mana aha meel kaydku ku istaagayo.',icon:Icons.cloud_queue),
           const SizedBox(height:12),
-          const Text('R2 — Kala-qaybinta sawirrada',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
+          const Text('KAYDKA MEHERADAHA IYO ADMIN-KA',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold,color:green)),
           ...groups.map((g)=>Card(child:ListTile(leading:const Icon(Icons.folder,color:green),title:Text(g['name']?.toString()??'Kayd kale'),subtitle:Text('${g['objects']??0} fayl'),trailing:Text(sizeText(g['bytes']),style:const TextStyle(fontWeight:FontWeight.bold))))),
           const SizedBox(height:12),
-          const Text('D1 — Jadwallada xogta',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold)),
+          const Text('D1 — JADWALLADA XOGTA',style:TextStyle(fontSize:17,fontWeight:FontWeight.bold,color:green)),
           ...tables.map((t)=>Card(child:ListTile(dense:true,leading:const Icon(Icons.table_chart,color:green),title:Text(t['name'].toString()),trailing:Text('${t['count']??0} diiwaan',style:const TextStyle(fontWeight:FontWeight.bold))))),
           const SizedBox(height:12),
-          const Text('Ogow: boggani wuxuu cabbiraa D1 iyo R2 ee server-ka. Kaydka gudaha telefoon kasta (Local Storage) meel fog lagama cabbiri karo.',style:TextStyle(color:Colors.black54,fontSize:12)),
+          const Card(child:Padding(padding:EdgeInsets.all(12),child:Text('OGEYSIIS: D1 Free wuxuu leeyahay 500 MB database kasta; Paid wuxuu gaari karaa 10 GB database kasta. R2-na waa kayd aan lahayn xad adag, balse qorshaha Free wuxuu leeyahay 10 GB-month gunno bille ah. Boqolleyda kore waa isbarbardhig, mana aha xisaab biil bille ah.'))),
+          const Text('Kaydka gudaha telefoon kasta (Local Storage) meel fog lagama cabbiri karo.',style:TextStyle(color:Colors.black54,fontSize:12)),
           if(data?['measuredAt']!=null)Text('La cusboonaysiiyey: ${data!['measuredAt']}',style:const TextStyle(color:Colors.black45,fontSize:11)),
         ]),
       ),
