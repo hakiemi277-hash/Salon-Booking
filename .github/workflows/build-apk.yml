@@ -36,6 +36,16 @@ jobs:
               s = s.replace('<application', permission + '\n    <application', 1)
           p.write_text(s)
           PY
+      - name: Set Android app display name
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          s = s.replace('android:label="salon_booking"', 'android:label="SALON BOOKING"')
+          s = s.replace("android:label='salon_booking'", "android:label='SALON BOOKING'")
+          p.write_text(s)
+          PY
       - name: Install dependencies
         run: flutter pub get
       - name: Build release APK
