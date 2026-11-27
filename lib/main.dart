@@ -61,7 +61,7 @@ class SalonApi {
         'customerWhatsApp': customerWhatsApp,
         if (merchantId != null) 'merchantId': merchantId,
         if (packageId != null) 'packageId': packageId,
-        details: details,
+        'details': details,
       }),
     );
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
@@ -70,8 +70,6 @@ class SalonApi {
     }
     return decoded;
   }
-}
-
 
   static Future<List<Map<String,dynamic>>> packages({String? category}) async {
     final q=category==null?'':'?category=${Uri.encodeQueryComponent(category)}';
@@ -87,16 +85,13 @@ class SalonApi {
     return (b['merchants'] as List).cast<Map<String,dynamic>>();
   }
   static Future<void> savePackage(String token,Map<String,dynamic> p,{bool update=false}) async {
-    final r=await http.openUrl(update?'PUT':'POST',Uri.parse('$baseUrl/api/packages'));
-    r.headers.set('Content-Type','application/json');
-    r.headers.set('Authorization','Bearer $token');
-    r.add(utf8.encode(jsonEncode(p)));
-    final response=await r.close();
-    final bodyText=await response.transform(utf8.decoder).join();
-    final b=jsonDecode(bodyText) as Map<String,dynamic>;
+    final uri=Uri.parse('$baseUrl/api/packages');
+    final headers={'Content-Type':'application/json','Authorization':'Bearer $token'};
+    final response=update?await http.put(uri,headers:headers,body:jsonEncode(p)):await http.post(uri,headers:headers,body:jsonEncode(p));
+    final b=jsonDecode(response.body) as Map<String,dynamic>;
     if(response.statusCode<200||response.statusCode>=300||b['ok']!=true) throw Exception(b['error']??'Package lama kaydin');
   }
-
+}
 
 class SalonBookingApp extends StatelessWidget {
   const SalonBookingApp({super.key});
