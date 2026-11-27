@@ -1680,8 +1680,54 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
   Map<String,dynamic> data={};
   bool loading=true;
   String? error;
+  Timer? orderPollTimer;
+  final Set<String> seenBookingIds=<String>{};
+  bool bookingSnapshotReady=false;
+  bool orderAlertShowing=false;
   @override
-  void initState(){super.initState();load();}
+  void initState(){
+    super.initState();
+    load();
+    _checkNewBookings();
+    orderPollTimer=Timer.periodic(const Duration(seconds:20),(_)=>_checkNewBookings());
+  }
+  @override
+  void dispose(){orderPollTimer?.cancel();super.dispose();}
+  Future<void> _checkNewBookings() async {
+    if(!mounted)return;
+    try{
+      final rows=await SalonApi.ownerBookings(widget.token);
+      if(!mounted)return;
+      if(!bookingSnapshotReady){
+        seenBookingIds.addAll(rows.map((x)=>(x['id']??'').toString()).where((x)=>x.isNotEmpty));
+        bookingSnapshotReady=true;
+        return;
+      }
+      if(ModalRoute.of(context)?.isCurrent!=true)return;
+      final fresh=rows.where((x){
+        final id=(x['id']??'').toString();
+        final status=(x['status']??'Sugaya jawaab').toString();
+        return id.isNotEmpty&&!seenBookingIds.contains(id)&&status=='Sugaya jawaab';
+      }).toList();
+      seenBookingIds.addAll(rows.map((x)=>(x['id']??'').toString()).where((x)=>x.isNotEmpty));
+      if(fresh.isEmpty||orderAlertShowing)return;
+      orderAlertShowing=true;
+      await showDialog<void>(context:context,barrierDismissible:true,builder:(dialogContext)=>AlertDialog(
+        title:const Text('DALAB CUSUB! ',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold,color:green)),
+        content:Text(fresh.length==1?'Waxaad heshay dalab cusub oo meheraddaada loo soo diray.':'Waxaad heshay ${fresh.length} dalab cusub oo meheraddaada loo soo diray.',textAlign:TextAlign.center),
+        actionsAlignment:MainAxisAlignment.center,
+        actions:[SizedBox(width:double.infinity,child:FilledButton(
+          style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white),
+          onPressed:(){
+            Navigator.pop(dialogContext);
+            Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token)));
+          },
+          child:const Text('EEG DALABKA',style:TextStyle(fontWeight:FontWeight.bold)),
+        ))],
+      ));
+      orderAlertShowing=false;
+    }catch(_){}
+  }
   Future<void> load() async {
     setState(()=>loading=true);
     try{final d=await SalonApi.ownerStaff(widget.token);if(mounted)setState(()=>{data=d,error=null,loading=false});}
