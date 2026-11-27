@@ -131,6 +131,17 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Lacag-bixinnada lama soo qaadi karin');
     return (b['payments'] as List).cast<Map<String,dynamic>>();
   }
+  static Future<List<Map<String,dynamic>>> ownerPayments(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/owner/payments'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Codsiyada lacag-bixinta lama soo qaadi karin');
+    return (b['payments'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> reviewOwnerPayment(String token,String id,String status) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/owner/payments/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'status':status}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xaqiijinta lacagtu way fashilantay');
+  }
   static Future<Map<String,dynamic>> adminStorage(String token) async {
     final r=await http.get(Uri.parse('$baseUrl/api/admin/storage'),headers:{'Authorization':'Bearer $token'});
     final decoded=jsonDecode(r.body);
@@ -139,12 +150,6 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Kaydka lama soo qaadi karin');
     return b;
   }
-  static Future<void> reviewPayment(String token,String id,String status) async {
-    final r=await http.patch(Uri.parse('$baseUrl/api/admin/payments/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'status':status}));
-    final b=jsonDecode(r.body) as Map<String,dynamic>;
-    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xaqiijinta lacagtu way fashilantay');
-  }
-
   static Future<Map<String,dynamic>> paymentConfig(String merchantId) async {
     final r=await http.get(Uri.parse('$baseUrl/api/payments/config?merchantId=${Uri.encodeQueryComponent(merchantId)}'));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -727,8 +732,22 @@ class _HomePageState extends State<HomePage> {
     final password=await ask('Password-ka meheradda','Ugu yaraan 10 xaraf');
     if(password==null||!mounted)return;
     if(password.trim().length<10){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Password-ku waa inuu ugu yaraan 10 xaraf ahaadaa.')));return;}
+    final telesomUsd=await ask('Telesom USD — lambarka meheradda','Lambarka lacagta laguugu soo dirayo (ikhtiyaari)');
+    if(!mounted)return;
+    final telesomSlsh=await ask('Telesom SLSH — lambarka meheradda','Lambarka lacagta laguugu soo dirayo (ikhtiyaari)');
+    if(!mounted)return;
+    final somtelUsd=await ask('Somtel USD — lambarka meheradda','Lambarka lacagta laguugu soo dirayo (ikhtiyaari)');
+    if(!mounted)return;
+    final somtelSlsh=await ask('Somtel SLSH — lambarka meheradda','Lambarka lacagta laguugu soo dirayo (ikhtiyaari)');
+    if(!mounted)return;
+    final paymentConfigs=<Map<String,dynamic>>[
+      if((telesomUsd??'').trim().isNotEmpty) {'provider':'Telesom','currency':'USD','recipientNumber':telesomUsd!.trim()},
+      if((telesomSlsh??'').trim().isNotEmpty) {'provider':'Telesom','currency':'SLSH','recipientNumber':telesomSlsh!.trim()},
+      if((somtelUsd??'').trim().isNotEmpty) {'provider':'Somtel','currency':'USD','recipientNumber':somtelUsd!.trim()},
+      if((somtelSlsh??'').trim().isNotEmpty) {'provider':'Somtel','currency':'SLSH','recipientNumber':somtelSlsh!.trim()},
+    ];
     try {
-      await SalonApi.createMerchantWithOwner(adminToken!,{'category':'SALON','name':n.trim(),'location':(l??'Hargeysa').trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password});
+      await SalonApi.createMerchantWithOwner(adminToken!,{'category':'SALON','name':n.trim(),'location':(l??'Hargeysa').trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
       await loadSalons();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda iyo akoonkeeda waa la diiwaangeliyey.')));
     } catch(e) {
@@ -1777,7 +1796,7 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
     final photoCount=int.tryParse((data['photoCount']??0).toString())??0;
     final activeStaff=staff.where((x)=>x['active']!=0&&x['active']!='0').toList();
     final name=(data['merchantName']??'Meheraddaada').toString();
-    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPromotionPage(token:widget.token))),icon:const Icon(Icons.campaign),tooltip:'Boosaska xayeysiiska'),
+    return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPaymentsPage(token:widget.token))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPromotionPage(token:widget.token))),icon:const Icon(Icons.campaign),tooltip:'Boosaska xayeysiiska'),
       IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
@@ -1960,6 +1979,50 @@ class _OwnerRentalPageState extends State<OwnerRentalPage> {
 }
 
 
+class OwnerPaymentsPage extends StatefulWidget {
+  const OwnerPaymentsPage({super.key,required this.token});
+  final String token;
+  @override
+  State<OwnerPaymentsPage> createState()=>_OwnerPaymentsPageState();
+}
+class _OwnerPaymentsPageState extends State<OwnerPaymentsPage>{
+  List<Map<String,dynamic>> payments=[];
+  bool loading=true;
+  String? error;
+  @override
+  void initState(){super.initState();load();}
+  Future<void> load() async {
+    setState(()=>loading=true);
+    try{final rows=await SalonApi.ownerPayments(widget.token);if(mounted)setState(()=>{payments=rows,error=null,loading=false});}
+    catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  Future<void> review(Map<String,dynamic> p,String status) async {
+    try{await SalonApi.reviewOwnerPayment(widget.token,p['id'].toString(),status);await load();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('CODSIYADA LACAG-BIXINTA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):payments.isEmpty?const Center(child:Text('Weli codsi lacag-bixin ma jiro.')):ListView(padding:const EdgeInsets.all(14),children:payments.map((p){
+      Map<String,dynamic> d={};try{d=jsonDecode((p['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+      return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text((p['customer_name']??'Macmiil').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17)),
+        Text('Alaab: ${d['itemName']??d['rentalItemName']??d['rentalItemId']??p['category']??''}'),
+        Text('Qiimaha: ${p['amount']} ${p['currency']}'),
+        Text('Habka lacagta: ${p['provider']}'),
+        Text('Lambarka lacagta laga diray: ${p['sender_phone']}'),
+        Text('Telefoonka macmiilka: ${p['customer_phone']}'),
+        Text('Xaaladda: ${p['status']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+        if(p['status']=='Sugaya xaqiijin')Wrap(spacing:8,children:[
+          FilledButton(onPressed:()=>review(p,'La xaqiijiyey'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('XAQIIJI LACAGTA')),
+          OutlinedButton(onPressed:()=>review(p,'Lama xaqiijin'),child:const Text('DIID')),
+        ]),
+        if(p['status']=='La xaqiijiyey')const Text('LA XAQIIJIYEY',style:TextStyle(color:green,fontWeight:FontWeight.bold)),
+      ])));
+    }).toList())
+  );
+}
+
 class OwnerBookingsPage extends StatefulWidget {
   const OwnerBookingsPage({super.key,required this.token});
   final String token;
@@ -2021,25 +2084,41 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
   }
   Future<void> pay(Map<String,dynamic> order) async {
     final sender=TextEditingController(text:(order['customer_phone']??'').toString());
-    final amount=TextEditingController();
-    String provider='Telesom',currency='USD';
+    final details=Map<String,dynamic>.from((()=>{try{return jsonDecode((order['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){return <String,dynamic>{};}})());
+    final amount=TextEditingController(text:(details['itemPrice']??details['price']??'').toString());
+    final merchantId=(order['merchant_id']??'').toString();
+    if(merchantId.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda dalabkan lama aqoonsan.')));return;}
+    Map<String,dynamic> config;
+    try{config=await SalonApi.paymentConfig(merchantId);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));return;}
+    final methods=(config['methods'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
+    if(methods.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheraddu weli ma dejin lambarrada lacagta. La xiriir meheradda.')));return;}
+    String provider=(methods.first['provider']??'Telesom').toString();
+    String currency=(methods.first['currency']??'USD').toString();
+    String recipient=methods.first['recipient_number']?.toString()??'';
     final id=(order['id']??'').toString();
     final p=await SharedPreferences.getInstance();
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
-      title:const Text('Xaqiiji inaad iibsatay'),
-      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        const Text('Marka hore lacagta u dir meheradda. Kadib geli lambarka aad lacagta ka dirtay iyo qadarka aad dirtay.'),
-        DropdownButtonFormField<String>(value:provider,decoration:const InputDecoration(labelText:'Habka lacagta'),items:['Somtel','Telesom','Soltelco'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>provider=v??provider)),
-        TextField(controller:sender,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Number-ka aad lacagta ka dirtay')),
-        TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lacagta aad dirtay')),
-        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta lagu diray'),items:['USD','SLSH'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??currency)),
-      ])),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Gudbi xaqiijin'))]
-    )));
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh){
+      final available=methods.where((m)=>m['provider']==provider).toList();
+      if(available.isNotEmpty&&!available.any((m)=>m['currency']==currency)){currency=available.first['currency'].toString();}
+      final selected=methods.where((m)=>m['provider']==provider&&m['currency']==currency).toList();
+      recipient=selected.isEmpty?'':(selected.first['recipient_number']??'').toString();
+      return AlertDialog(
+        title:const Text('DIR LACAGTA MEHERADDA'),
+        content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+          const Text('U dir lacagta lambarka meheradda ee hoose. Kadib geli lambarka aad lacagta ka dirtay.'),
+          DropdownButtonFormField<String>(value:provider,decoration:const InputDecoration(labelText:'Habka lacagta'),items:methods.map((m)=>m['provider'].toString()).toSet().map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>provider=v??provider)),
+          DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Lacagta'),items:available.map((m)=>m['currency'].toString()).toSet().map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>currency=v??currency)),
+          Container(width:double.infinity,margin:const EdgeInsets.symmetric(vertical:10),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:green.withOpacity(.08),borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('LAMBARKA LACAGTA MEHERADDA',style:TextStyle(fontSize:11,fontWeight:FontWeight.bold)),SelectableText(recipient.isEmpty?'Lambar lama hayo':recipient,style:const TextStyle(fontSize:20,fontWeight:FontWeight.bold,color:green))])),
+          TextField(controller:sender,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Number-ka aad lacagta ka dirtay')),
+          TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Lacagta aad dirtay')),
+        ])),
+        actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('DIR CODSIGA'))]
+      );
+    }));
     if(ok!=true||!mounted)return;
     final v=double.tryParse(amount.text.trim());
-    if(sender.text.trim().length<7||v==null||v<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Hubi lambarka iyo qadarka lacagta.')));return;}
-    try{await SalonApi.submitPayment(id,p.getString('customer_phone')??'',provider,sender.text.trim(),v,currency);await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Xogta lacagta waa la diray. Admin-ka ayaa hubinaya.')));}
+    if(sender.text.trim().length<7||v==null||v<=0||recipient.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Hubi lambarka meheradda, lambarka aad ka dirtay iyo qadarka.')));return;}
+    try{await SalonApi.submitPayment(id,p.getString('customer_phone')??'',provider,sender.text.trim(),v,currency);await load();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Codsiga lacagta waa la diray. Milkiilaha meheradda ayaa hubinaya.')));}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
   String status(Map<String,dynamic> o)=>(o['status']??'Sugaya jawaab').toString();
@@ -2056,8 +2135,8 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
           if(details.isNotEmpty)Text(details.entries.map((e)=>'${e.key}: ${e.value}').join(' • ')),
           const SizedBox(height:5),Text('Xaaladda dalabka: $st',style:const TextStyle(fontWeight:FontWeight.w600)),
           if(payment.isNotEmpty)Text('Xaaladda lacagta: $payment'),
-          if(st=='La aqbalay'&&payment.isEmpty)Padding(padding:const EdgeInsets.only(top:8),child:SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>pay(o),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('WAAN IIBSADAY')))),
-          if(payment=='Sugaya xaqiijin')const Text('Lacagtaada admin-ka ayaa hubinaya.',style:TextStyle(color:Colors.orange)),
+          if((st=='La aqbalay'||(o['category']=='KIRAYSO'&&st=='Sugaya lacag-bixin')||payment=='Lama xaqiijin')&&payment!='Sugaya xaqiijin'&&st!='PURCHASED')Padding(padding:const EdgeInsets.only(top:8),child:SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>pay(o),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('DIR LACAGTA')))),
+          if(payment=='Sugaya xaqiijin')const Text('Milkiilaha meheradda ayaa hubinaya lacagtaada.',style:TextStyle(color:Colors.orange)),
           if(st=='PURCHASED')const Text('Dalabka waa la iibsaday, lacagtiisana waa la xaqiijiyey.',style:TextStyle(color:green,fontWeight:FontWeight.bold)),
         ])));
       })
@@ -2246,25 +2325,20 @@ class _AdminPaymentsPageState extends State<AdminPaymentsPage>{
     try{final x=await SalonApi.adminPayments(widget.token);if(mounted)setState(()=>{payments=x,loading=false,error=null});}
     catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
   }
-  Future<void> review(Map<String,dynamic> p,String status) async {
-    try{await SalonApi.reviewPayment(widget.token,p['id'].toString(),status);await load();}
-    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
-  }
   @override
   Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('XAQIIJINTA LACAGAHA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
-    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):payments.isEmpty?const Center(child:Text('Weli lacag la xaqiijinayo ma jirto.')):ListView(padding:const EdgeInsets.all(14),children:[
+    appBar:AppBar(title:const Text('LA SOCODKA LACAG-BIXINTA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):payments.isEmpty?const Center(child:Text('Weli codsi lacag-bixin ma jiro.')):ListView(padding:const EdgeInsets.all(14),children:[
+      const Padding(padding:EdgeInsets.only(bottom:10),child:Text('Admin-ku wuxuu kaliya la socdaa codsiyada. Milkiilaha meheradda ayaa xaqiijiya ama diida lacagta.',style:TextStyle(color:Colors.black54))),
       ...payments.map((p)=>Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text((p['customer_name']??'Macmiil').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17)),
-        Text('Dalab: ${p['category']??''} • Meherad: ${p['merchant_name']??'—'}'),
+        Text('Meherad: ${p['merchant_name']??'—'}'),
+        Text('Dalab: ${p['category']??''}'),
         Text('Habka: ${p['provider']} • Lacag: ${p['amount']} ${p['currency']}'),
-        Text('Lambarka lacagta laga diray: ${p['sender_phone']}'),
+        Text('Lambarka laga diray: ${p['sender_phone']}'),
         Text('Lambarka macmiilka: ${p['customer_phone']}'),
         Text('Xaaladda: ${p['status']}'),
-        if(p['status']=='Sugaya xaqiijin')Wrap(spacing:8,children:[
-          FilledButton(onPressed:()=>review(p,'La xaqiijiyey'),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('Xaqiiji lacagta')),
-          OutlinedButton(onPressed:()=>review(p,'Lama xaqiijin'),child:const Text('Diid')),
-        ]),
+        if(p['status']=='La xaqiijiyey')const Text('LA XAQIIJIYEY',style:TextStyle(color:green,fontWeight:FontWeight.bold)),
       ])))),
     ])
   );
