@@ -2239,7 +2239,10 @@ class _HallAroosPageState extends State<HallAroosPage>{
     body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Column(mainAxisSize:MainAxisSize.min,children:[Text(error!,textAlign:TextAlign.center),TextButton(onPressed:load,child:const Text('DIB U CUSBOONAYSII'))])):halls.isEmpty?const Center(child:Text('Weli HALL AROOS lama soo gelin.')):RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(14),children:[
       Text('HALLS-KA AROOSKA — ${halls.length}',style:const TextStyle(fontSize:19,fontWeight:FontWeight.bold,color:green)),
       const SizedBox(height:10),
-      ...halls.map((h)=>Card(clipBehavior:Clip.antiAlias,margin:const EdgeInsets.only(bottom:14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      ...halls.map((h)=>InkWell(
+        onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>HallWelcomePage(hallName:(h['title']??'HALL AROOS').toString(),imageUrl:(h['image_url']??'').toString(),description:(h['description']??'').toString()))),
+        borderRadius:BorderRadius.circular(14),
+        child:Card(clipBehavior:Clip.antiAlias,margin:const EdgeInsets.only(bottom:14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         SizedBox(width:double.infinity,height:205,child:salonImage((h['image_url']??'').toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.church_outlined,size:50,color:green)))),
         Padding(padding:const EdgeInsets.fromLTRB(14,12,14,14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text((h['title']??'HALL AROOS').toString(),style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold,color:green)),
@@ -2250,7 +2253,65 @@ class _HallAroosPageState extends State<HallAroosPage>{
           ])
         ]))
       ])))
+      ))
     ])),
+  );
+}
+
+class HallWelcomePage extends StatefulWidget {
+  const HallWelcomePage({super.key,required this.hallName,required this.imageUrl,this.description='' });
+  final String hallName,imageUrl,description;
+  @override
+  State<HallWelcomePage> createState()=>_HallWelcomePageState();
+}
+class _HallWelcomePageState extends State<HallWelcomePage>{
+  final name=TextEditingController(),phone=TextEditingController(),whatsapp=TextEditingController(),event=TextEditingController(),notes=TextEditingController();
+  DateTime? eventDate;
+  bool sending=false;
+  @override
+  void dispose(){name.dispose();phone.dispose();whatsapp.dispose();event.dispose();notes.dispose();super.dispose();}
+  Future<void> submit() async {
+    if(name.text.trim().isEmpty||phoneDigits(phone.text).length<7||eventDate==null){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Geli magaca, telefoon sax ah iyo taariikhda xafladda.')));return;
+    }
+    setState(()=>sending=true);
+    try{
+      await SalonApi.createBooking(category:'HALL AROOS',customerName:name.text.trim(),customerPhone:phoneDigits(phone.text),customerWhatsApp:whatsapp.text.trim().isEmpty?phoneDigits(phone.text):phoneDigits(whatsapp.text),details:{'hallName':widget.hallName,'eventType':event.text.trim(),'eventDate':eventDate!.toIso8601String().split('T').first,'notes':notes.text.trim()});
+      if(!mounted)return;
+      await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('CODSIGA WAA LA DIRAY'),content:const Text('Mahadsanid. Codsigaaga HALL AROOS waa la diray. Fadlan sug inta lagaa soo jawaabayo.'),actions:[FilledButton(onPressed:()=>Navigator.pop(ctx),child:const Text('HAGAAG'))]));
+      if(mounted)Navigator.pop(context);
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Codsiga lama dirin: $e')));}
+    finally{if(mounted)setState(()=>sending=false);}
+  }
+  @override
+  Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text(widget.hallName),backgroundColor:green,foregroundColor:Colors.white),
+    body:ListView(padding:const EdgeInsets.all(16),children:[
+      ClipRRect(borderRadius:BorderRadius.circular(16),child:SizedBox(height:190,child:salonImage(widget.imageUrl,fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.church_outlined,size:55,color:green))))),
+      const SizedBox(height:18),
+      Text('MACMIIL KUSOO DHAWOOW ${widget.hallName.toUpperCase()}',textAlign:TextAlign.center,style:const TextStyle(fontSize:21,fontWeight:FontWeight.bold,color:green)),
+      const SizedBox(height:12),
+      const Text('WAAN KAAGA MAHAD-CELINAYNAA DOORASHADAADA',textAlign:TextAlign.center,style:TextStyle(fontSize:16,fontWeight:FontWeight.w600)),
+      const SizedBox(height:10),
+      const Text('FADLAN QABSO BALLAN SI AANU KUUGU QURXINO XAFLADAADA',textAlign:TextAlign.center,style:TextStyle(fontSize:15,color:Colors.black87)),
+      if(widget.description.trim().isNotEmpty)Padding(padding:const EdgeInsets.only(top:8),child:Text(widget.description,textAlign:TextAlign.center)),
+      const Divider(height:30),
+      const Text('DIWAANGELI CODSIGAAGA',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold,color:green)),
+      const SizedBox(height:10),
+      TextField(controller:name,decoration:const InputDecoration(labelText:'Magaca macmiilka',border:OutlineInputBorder())),
+      const SizedBox(height:10),
+      TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Lambarka telefoonka',border:OutlineInputBorder())),
+      const SizedBox(height:10),
+      TextField(controller:whatsapp,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'WhatsApp (ikhtiyaari)',border:OutlineInputBorder())),
+      const SizedBox(height:10),
+      TextField(controller:event,decoration:const InputDecoration(labelText:'Nooca xafladda (ikhtiyaari)',border:OutlineInputBorder())),
+      const SizedBox(height:10),
+      OutlinedButton.icon(onPressed:()=>showDatePicker(context:context,initialDate:DateTime.now().add(const Duration(days:7)),firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:730))).then((d){if(d!=null&&mounted)setState(()=>eventDate=d);}),icon:const Icon(Icons.calendar_month),label:Text(eventDate==null?'DOORO TAARIIKHDA XAFLADDA':'Taariikhda: ${eventDate!.day}/${eventDate!.month}/${eventDate!.year}')),
+      const SizedBox(height:10),
+      TextField(controller:notes,maxLines:3,decoration:const InputDecoration(labelText:'Faahfaahin dheeraad ah (ikhtiyaari)',border:OutlineInputBorder())),
+      const SizedBox(height:18),
+      SizedBox(width:double.infinity,child:FilledButton(onPressed:sending?null:submit,style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:15)),child:sending?const CircularProgressIndicator(color:Colors.white):const Text('DIR CODSIGA'))),
+    ]),
   );
 }
 
