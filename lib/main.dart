@@ -198,6 +198,11 @@ class SalonApi {
     final b=jsonDecode(r.body) as Map<String,dynamic>;
     if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Akoonka meheradda lama samayn');
   }
+  static Future<void> updateMerchant(String token,String id,Map<String,dynamic> values) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/admin/merchants/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(values));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xogta meheradda lama beddelin');
+  }
   static Future<void> updateStaffLimit(String token,String merchantId,int limit) async {
     final r=await http.patch(Uri.parse('$baseUrl/api/admin/merchants/$merchantId/staff-limit'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'staffLimit':limit}));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -653,8 +658,11 @@ class _HomePageState extends State<HomePage> {
     if (n != null && n.isNotEmpty) setState(() => salons[i].name = n);
   }
   Future<void> editSalonPhone(int i) async {
-    final n = await ask('WhatsApp / telefoonka ' + salons[i].name, salons[i].whatsappNumber.isEmpty ? '252...' : salons[i].whatsappNumber);
-    if (n != null) setState(() => salons[i].whatsappNumber = n);
+    if(adminToken==null)return;
+    final n=await ask('WhatsApp / telefoonka '+salons[i].name,salons[i].whatsappNumber.isEmpty?'252...':salons[i].whatsappNumber);
+    if(n==null)return;
+    try{await SalonApi.updateMerchant(adminToken!,salons[i].id,{'ownerWhatsApp':n.trim()});await loadSalons();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Lambarka meheradda waa la kaydiyey.')));}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -721,7 +729,7 @@ class _HomePageState extends State<HomePage> {
         actionCard('SAD RENTAL, TAASH, TOOBKA MEHERKA, SUBEECIYAD', 'KIRAYSO', Icons.checkroom,
           () => Navigator.push(context, MaterialPageRoute(builder: (_) => RentalPage(city:selectedCity)))),
       ],
-      if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN DEMO: isbeddelladani qalabka oo keliya ayay ku jiraan; database/server wali lama xirin.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
+      if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN: Meheradaha, shaqaalaha iyo xadkooda waxaa lagu kaydiyaa server-ka.', style: TextStyle(color: green, fontSize: 12))),
     ]));
   Widget sectionTile(String title, String subtitle, IconData icon, int index) {
     final imageUrl=categoryImageUrls[title];
@@ -1523,14 +1531,15 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
   Widget build(BuildContext context){
     final staff=(data['staff'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
     final limit=int.tryParse((data['staffLimit']??5).toString())??5;
+    final activeStaff=staff.where((x)=>x['active']!=0&&x['active']!='0').toList();
     final name=(data['merchantName']??'Meheraddaada').toString();
     return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
-      floatingActionButton:FloatingActionButton.extended(onPressed:staff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
+      floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
-        Text('SHAQAALAHA: '+staff.where((x)=>x['active']!=0&&x['active']!='0').length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
+        Text('SHAQAALAHA: '+activeStaff.length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
         const SizedBox(height:8),
         if(staff.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Weli gabdho shaqaale ah lama diiwaangelin.')),
-        ...staff.where((x)=>x['active']!=0&&x['active']!='0').map((p)=>Card(child:ListTile(
+        ...activeStaff.map((p)=>Card(child:ListTile(
           leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:const Icon(Icons.person,color:green))),
           title:Text((p['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
           subtitle:Text((p['title']??'').toString()+'\n'+((jsonDecode((p['services_json']??'[]').toString()) as List).join(', '))),
