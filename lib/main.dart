@@ -510,7 +510,7 @@ class _HomePageState extends State<HomePage> {
         const Text('BALLAN QABSO — SALON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
         const SizedBox(height: 6), const Text('SALON-LADA', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8), OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const FullPackagesPage(category:'SALON'))),icon:const Icon(Icons.inventory_2),label:const Text('FULL PACKAGE')),
-        const SizedBox(height: 10), ...List.generate(salons.length, salonCard),
+        const SizedBox(height: 10), Wrap(spacing: 10, runSpacing: 10, children: List.generate(salons.length, (i) => SizedBox(width: (MediaQuery.of(context).size.width - 48) / 2, child: salonCard(i)))),
       ],
       if (selectedSection == 1) ...[
         const SizedBox(height: 20),
@@ -690,19 +690,29 @@ class _ProviderDirectoryPageState extends State<ProviderDirectoryPage> {
           (widget.isCake ? 'cakes' : 'decoration') + ' ah.', style: const TextStyle(fontWeight: FontWeight.w600))),
       if (adminMode) const Padding(padding: EdgeInsets.only(top: 8), child: Text('ADMIN DEMO: lambarrada halkan lagu kaydiyo waxay ku jiraan telefoonkan oo keliya.', style: TextStyle(color: Colors.deepOrange, fontSize: 12))),
       const SizedBox(height: 12),
-      ...List.generate(providers.length, (i) {
+      Wrap(spacing: 10, runSpacing: 10, children: List.generate(providers.length, (i) {
         final provider = providers[i];
-        return Card(margin: const EdgeInsets.only(bottom: 9), child: ListTile(
-          leading: CircleAvatar(backgroundColor: const Color(0xFFE5EFE9),
-            child: Icon(widget.isCake ? Icons.cake_outlined : Icons.celebration_outlined, color: green)),
-          title: Text(provider, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(widget.isCake ? 'Cake design iyo dalabyo' : 'Qurxinta munaasabadaha iyo xafladaha'),
-          trailing: adminMode ? IconButton(icon: const Icon(Icons.phone), onPressed: () => _editNumber(provider)) : const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: adminMode ? () => _editNumber(provider) : () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
-            widget.isCake ? CakePage(providerName: provider, whatsappNumber: numbers[provider] ?? '') :
-              DecorationBookingPage(providerName: provider, whatsappNumber: numbers[provider] ?? ''))),
+        return SizedBox(width: (MediaQuery.of(context).size.width - 48) / 2, child: Card(
+          margin: EdgeInsets.zero,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: adminMode ? () => _editNumber(provider) : () => Navigator.push(context, MaterialPageRoute(builder: (_) =>
+              widget.isCake ? CakePage(providerName: provider, whatsappNumber: numbers[provider] ?? '') :
+                DecorationBookingPage(providerName: provider, whatsappNumber: numbers[provider] ?? ''))),
+            child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              CircleAvatar(backgroundColor: const Color(0xFFE5EFE9),
+                child: Icon(widget.isCake ? Icons.cake_outlined : Icons.celebration_outlined, color: green)),
+              const SizedBox(height: 9),
+              Text(provider, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 5),
+              Text(widget.isCake ? 'Cake design iyo dalabyo' : 'Qurxinta munaasabadaha', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+              Align(alignment: Alignment.centerRight, child: adminMode
+                ? IconButton(padding: EdgeInsets.zero, constraints: const BoxConstraints(), icon: const Icon(Icons.phone, size: 18), onPressed: () => _editNumber(provider))
+                : const Icon(Icons.arrow_forward_ios, size: 14, color: green)),
+            ])),
+          ),
         ));
-      }),
+      })),
     ]),
   );
 }
