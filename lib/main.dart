@@ -361,6 +361,28 @@ class SalonApi {
     final b=jsonDecode(r.body) as Map<String,dynamic>;
     if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Dakhliga lama diiwaangelin');
   }
+  static Future<List<Map<String,dynamic>>> adminCoupons(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/admin/coupons'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Coupons lama soo qaadi karin');
+    return (b['coupons'] as List).cast<Map<String,dynamic>>();
+  }
+  static Future<void> createAdminCoupon(String token,Map<String,dynamic> data) async {
+    final r=await http.post(Uri.parse('$baseUrl/api/admin/coupons'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(data));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Coupon lama samayn');
+  }
+  static Future<void> setAdminCouponActive(String token,String id,bool active) async {
+    final r=await http.patch(Uri.parse('$baseUrl/api/admin/coupons/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'active':active}));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Xaaladda coupon-ka lama beddelin');
+  }
+  static Future<void> deleteAdminCoupon(String token,String id) async {
+    final r=await http.delete(Uri.parse('$baseUrl/api/admin/coupons/$id'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Coupon lama tirtirin');
+  }
+
   static Future<Map<String,dynamic>> ownerRevenue(String token,String from,String to) async {
     final r=await http.get(Uri.parse('$baseUrl/api/owner/revenue?from=$from&to=$to'),headers:{'Authorization':'Bearer $token'});
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -854,6 +876,7 @@ class _HomePageState extends State<HomePage> {
       actions: [if (admin) IconButton(onPressed: addSalon, icon: const Icon(Icons.add_business)),
         if (admin) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>FullPackagesPage(adminToken:adminToken))),icon:const Icon(Icons.inventory_2),tooltip:'Full Package'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminRevenuePage(token:adminToken!))),icon:const Icon(Icons.bar_chart),tooltip:'Dakhliga meheradaha'),
+        if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminCouponsPage(token:adminToken!))),icon:const Icon(Icons.discount),tooltip:'Coupons iyo qiimo-dhimis'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentsPage(token:adminToken!))),icon:const Icon(Icons.payments),tooltip:'La soco lacagaha'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminStoragePage(token:adminToken!))),icon:const Icon(Icons.storage),tooltip:'Maamulka Storage-ka'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPromotionPage(token:adminToken!))),icon:const Icon(Icons.campaign),tooltip:'Xaqiiji boosaska xayeysiiska'),
@@ -1704,6 +1727,8 @@ class _CakePageState extends State<CakePage> {
             TextField(controller: phone, keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Number telefoonka', border: OutlineInputBorder())),
             const SizedBox(height: 12),
+            TextField(controller: couponCode, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Coupon code (ikhtiyaari)', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
             pick('Cabirka cake-ka', size, ['Yar','Dhexdhexaad','Weyn','Aad u weyn'], (v) => setState(() => size = v!)),
             pick('Tirada dabaqyada', tiers, ['1','2','3','4','5+'], (v) => setState(() => tiers = v!)),
             pick('Naqshadda', design, ['Casri','Classic','Wedding','Birthday','Custom'], (v) => setState(() => design = v!)),
@@ -1754,6 +1779,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
   final name = TextEditingController();
   final phone = TextEditingController();
   final notes = TextEditingController();
+  final couponCode = TextEditingController();
   DateTime? selectedDate;
   String? selectedTime;
   Set<String> busyTimes = <String>{};
@@ -1783,6 +1809,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
     name.dispose();
     phone.dispose();
     notes.dispose();
+    couponCode.dispose();
     super.dispose();
   }
 
@@ -1876,6 +1903,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
           'appointmentDate': dateText,
           'appointmentTime': selectedTime,
           'notes': notes.text.trim(),
+          if(couponCode.text.trim().isNotEmpty)'couponCode':couponCode.text.trim().toUpperCase(),
         },
       );
     } catch (e) {
@@ -2214,6 +2242,42 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
 }
 
 
+
+class AdminCouponsPage extends StatefulWidget {
+  const AdminCouponsPage({super.key,required this.token});
+  final String token;
+  @override State<AdminCouponsPage> createState()=>_AdminCouponsPageState();
+}
+class _AdminCouponsPageState extends State<AdminCouponsPage>{
+  List<Map<String,dynamic>> rows=[];
+  bool loading=true;
+  @override void initState(){super.initState();load();}
+  Future<void> load() async {if(mounted)setState(()=>loading=true);try{final x=await SalonApi.adminCoupons(widget.token);if(mounted)setState(()=>{rows=x,loading=false});}catch(e){if(mounted){setState(()=>loading=false);ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}}
+  Future<void> create() async {
+    final code=TextEditingController(),discount=TextEditingController(text:'10'),uses=TextEditingController();
+    String category='ALL';DateTime? expiry;
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:const Text('SAMEE COUPON CUSUB'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextField(controller:code,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Koodhka coupon-ka')),
+        TextField(controller:discount,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Dhimista boqolkiiba (%)')),
+        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Qaybta'),items:const ['ALL','SALON','CAKES','DECORATION','KIRAYSO'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>refresh(()=>category=v??'ALL')),
+        TextField(controller:uses,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Tirada ugu badan (madhan = aan xad lahayn)')),
+        ListTile(contentPadding:EdgeInsets.zero,title:Text(expiry==null?'Waqtiga uu dhacayo: ma xadidna':'Wuxuu dhacayaa: ${expiry!.year}-${expiry!.month.toString().padLeft(2,'0')}-${expiry!.day.toString().padLeft(2,'0')}'),trailing:const Icon(Icons.date_range),onTap:()async{final d=await showDatePicker(context:ctx,firstDate:DateTime.now(),lastDate:DateTime.now().add(const Duration(days:730)),initialDate:expiry??DateTime.now().add(const Duration(days:30)));if(d!=null)refresh(()=>expiry=d);}),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('KA NOQO')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('KAYDI'))]
+    )));
+    if(ok!=true)return;
+    final pct=int.tryParse(discount.text.trim()),max=uses.text.trim().isEmpty?null:int.tryParse(uses.text.trim());
+    if(code.text.trim().isEmpty||pct==null||pct<1||pct>100||(uses.text.trim().isNotEmpty&&(max==null||max<1))){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Hubi koodhka, boqolkiiba iyo tirada isticmaalka.')));return;}
+    try{await SalonApi.createAdminCoupon(widget.token,{'code':code.text.trim(),'discountPercent':pct,'category':category,'maxUses':max,'expiresAt':expiry==null?null:DateTime(expiry!.year,expiry!.month,expiry!.day,23,59,59).toUtc().toIso8601String()});await load();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('COUPONS IYO DHIMIS'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),floatingActionButton:FloatingActionButton.extended(onPressed:create,backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.add),label:const Text('SAMEE COUPON')),body:loading?const Center(child:CircularProgressIndicator(color:green)):rows.isEmpty?const Center(child:Text('Weli coupon lama samayn.')):ListView(padding:const EdgeInsets.all(14),children:[
+    const Text('Koodhadhka qiimo-dhimista. Macmiilku wuxuu geli karaa koodhka marka uu ballan salon qabsanayo.',style:TextStyle(color:Colors.black54)),
+    ...rows.map((x){final active=x['active']==1||x['active']==true;return Card(child:ListTile(title:Text((x['code']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold,color:green)),subtitle:Text('${x['discount_percent']}% dhimista • ${x['category']} • La isticmaalay ${x['used_count']??0}/${x['max_uses']??'∞'}'),trailing:PopupMenuButton<String>(onSelected:(v)async{try{if(v=='toggle')await SalonApi.setAdminCouponActive(widget.token,x['id'].toString(),!active);if(v=='delete')await SalonApi.deleteAdminCoupon(widget.token,x['id'].toString());await load();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},itemBuilder:(_)=>[PopupMenuItem(value:'toggle',child:Text(active?'Dami':'Dib u daar')),const PopupMenuItem(value:'delete',child:Text('Tirtir'))])));}),
+  ]));
+}
 
 class OwnerRevenuePage extends StatefulWidget {
   const OwnerRevenuePage({super.key,required this.token});
