@@ -849,6 +849,16 @@ class _HomePageState extends State<HomePage> {
           sectionTile('HALL AROOS', 'Halls-ka aroosyada', Icons.church_outlined, 4),
         ],
       ),
+      const SizedBox(height: 12),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.star_rate_rounded, color: Colors.amber, size: 30),
+          title: const Text('RATE US', style: TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: const Text('Qiimee app-ka adigoo dooranaya 1 ilaa 5 xiddigood'),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: rateUs,
+        ),
+      ),
       if (selectedSection == 0) ...[
         const SizedBox(height: 20),
         const Text('BALLAN QABSO — SALON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green)),
@@ -875,6 +885,53 @@ class _HomePageState extends State<HomePage> {
       ],
       if (admin) const Padding(padding: EdgeInsets.only(top: 15), child: Text('ADMIN: Meheradaha, shaqaalaha iyo xadkooda waxaa lagu kaydiyaa server-ka.', style: TextStyle(color: green, fontSize: 12))),
     ]));
+  Future<void> rateUs() async {
+    int selectedRating = 0;
+    final rating = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('RATE US'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Qiimee SALON BOOKING'),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) => IconButton(
+                  tooltip: '${index + 1} xiddig',
+                  onPressed: () => setDialogState(() => selectedRating = index + 1),
+                  icon: Icon(
+                    index < selectedRating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                    size: 34,
+                  ),
+                )),
+              ),
+              Text(selectedRating == 0 ? 'Dooro xiddigaha' : '$selectedRating / 5'),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('XIR')),
+            FilledButton(
+              onPressed: selectedRating == 0 ? null : () => Navigator.pop(dialogContext, selectedRating),
+              style: FilledButton.styleFrom(backgroundColor: green),
+              child: const Text('DIR QIIMAYNTA'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (rating == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('salon_app_rating', rating);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mahadsanid qiimayntaada!')),
+    );
+  }
+
   Widget sectionTile(String title, String subtitle, IconData icon, int index) {
     final imageUrl=categoryImageUrls[title];
     return InkWell(
