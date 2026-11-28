@@ -1023,8 +1023,14 @@ class _MerchantSearchPageState extends State<MerchantSearchPage>{
   final search=TextEditingController();
   String category='DHAMMAAN';
   bool loading=true;
+  bool favoritesOnly=false;
   String? error;
   List<Map<String,dynamic>> merchants=[];
+  Set<String> favoriteIds={};
+  String get favoriteKey {
+    final phone=phoneDigits(SharedPreferences.getInstance().toString());
+    return 'salon_favorites_${widget.city.toLowerCase()}';
+  }
   @override
   void initState(){super.initState();load();}
   @override
@@ -1032,9 +1038,18 @@ class _MerchantSearchPageState extends State<MerchantSearchPage>{
   Future<void> load() async {
     setState(()=>loading=true);
     try{
+      final prefs=await SharedPreferences.getInstance();
+      final saved=prefs.getStringList('salon_favorites_${widget.city.toLowerCase()}')??<String>[];
       final rows=await SalonApi.publicAllMerchants(widget.city);
-      if(mounted)setState(()=>{merchants=rows,loading=false,error=null});
+      if(mounted)setState(()=>{merchants=rows,favoriteIds=saved.toSet(),loading=false,error=null});
     }catch(e){if(mounted)setState(()=>{loading=false,error=e.toString()});}
+  }
+  Future<void> toggleFavorite(String id) async {
+    final next={...favoriteIds};
+    if(!next.add(id))next.remove(id);
+    final prefs=await SharedPreferences.getInstance();
+    await prefs.setStringList('salon_favorites_${widget.city.toLowerCase()}',next.toList());
+    if(mounted)setState(()=>favoriteIds=next);
   }
   List<Map<String,dynamic>> get filtered {
     final q=search.text.trim().toLowerCase();
@@ -1042,7 +1057,8 @@ class _MerchantSearchPageState extends State<MerchantSearchPage>{
       final c=(m['category']??'').toString();
       final name=(m['name']??'').toString().toLowerCase();
       final loc=(m['location']??'').toString().toLowerCase();
-      return (category=='DHAMMAAN'||c==category)&&(q.isEmpty||name.contains(q)||loc.contains(q));
+      final id=(m['id']??'').toString();
+      return (category=='DHAMMAAN'||c==category)&&(!favoritesOnly||favoriteIds.contains(id))&&(q.isEmpty||name.contains(q)||loc.contains(q));
     }).toList();
   }
   void openMerchant(Map<String,dynamic> m){
@@ -1068,6 +1084,7 @@ class _MerchantSearchPageState extends State<MerchantSearchPage>{
         controller:search,onChanged:(_)=>setState((){}),
         decoration:InputDecoration(prefixIcon:const Icon(Icons.search,color:green),hintText:'Geli magaca meheradda ama xaafadda',suffixIcon:search.text.isEmpty?null:IconButton(onPressed:(){search.clear();setState((){});},icon:const Icon(Icons.close)),border:OutlineInputBorder(borderRadius:BorderRadius.circular(14))))),
       SizedBox(height:52,child:ListView(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:10),children:[
+        Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:ChoiceChip(label:const Text('KAYDSAN'),selected:favoritesOnly,onSelected:(_)=>setState(()=>favoritesOnly=!favoritesOnly))),
         for(final c in ['DHAMMAAN','SALON','CAKES','DECORATION','KIRAYSO'])
           Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:ChoiceChip(label:Text(c),selected:category==c,onSelected:(_)=>setState(()=>category=c)))
       ])),
@@ -1078,7 +1095,7 @@ class _MerchantSearchPageState extends State<MerchantSearchPage>{
             leading:CircleAvatar(backgroundColor:cream,child:Icon(m['category']=='SALON'?Icons.spa:m['category']=='CAKES'?Icons.cake:m['category']=='DECORATION'?Icons.celebration:m['category']=='KIRAYSO'?Icons.checkroom:Icons.storefront,color:green)),
             title:Text((m['name']??'Meherad').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
             subtitle:Text('${m['category']??''} • ${m['location']??widget.city}'),
-            trailing:const Icon(Icons.arrow_forward_ios,size:16,color:green),
+            trailing:Row(mainAxisSize:MainAxisSize.min,children:[IconButton(tooltip:favoriteIds.contains((m['id']??'').toString())?'Ka saar kaydka':'Ku dar kaydka',onPressed:()=>toggleFavorite((m['id']??'').toString()),icon:Icon(favoriteIds.contains((m['id']??'').toString())?Icons.favorite:Icons.favorite_border,color:favoriteIds.contains((m['id']??'').toString())?Colors.red:green)),const Icon(Icons.arrow_forward_ios,size:16,color:green)]),
             onTap:()=>openMerchant(m),
           ));
         }))
