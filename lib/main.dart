@@ -763,11 +763,13 @@ class _HomePageState extends State<HomePage> {
             try{details=jsonDecode((booking['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
             final customer=(booking['customer_name']??'Macmiil').toString();
             final category=(booking['category']??'DALAB').toString();
+            final batchId=(booking['batch_id']??'').toString();
             final merchant=(booking['merchant_name']??'Meherad').toString();
             final service=(details['service']??details['itemName']??details['productName']??details['hallName']??'Dalab cusub').toString();
             final when=(details['appointmentDate']??details['eventDate']??details['deliveryDate']??details['startDate']??'').toString();
             return Container(margin:const EdgeInsets.only(bottom:9),padding:const EdgeInsets.all(10),decoration:BoxDecoration(color:cream,borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
               _orderAlertLine('Qaybta',category),
+              if(batchId.isNotEmpty)_orderAlertLine('Kooxda dalabka',batchId.substring(0,8)),
               _orderAlertLine('Macmiil',customer),
               _orderAlertLine('Meherad',merchant),
               _orderAlertLine('Dalab',service),
@@ -1218,7 +1220,7 @@ class _HomePageState extends State<HomePage> {
           return;
         }
         if (index == 2) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ProviderDirectoryPage(title: 'DECORATION', isCake: false, city:selectedCity)));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => MerchantSearchPage(city:selectedCity, initialCategory:'DECORATION')));
           return;
         }
         if(index==3){
@@ -2810,8 +2812,10 @@ class _OwnerBookingsPageState extends State<OwnerBookingsPage> {
       Expanded(child:visibleBookings.isEmpty?Center(child:Text(filter=='DHAMMAAN'?'Weli ballamo ma jiraan.':'Qaybtan wax ballamo ah kuma jiraan.')):ListView(padding:const EdgeInsets.fromLTRB(14,2,14,14),children:visibleBookings.map((b){
         Map<String,dynamic> d={};try{d=jsonDecode((b['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
         final status=(b['status']??'Sugaya jawaab').toString();
+        final batchId=(b['batch_id']??'').toString();
         return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Row(children:[Expanded(child:Text((b['customer_name']??'Macmiil').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16))),Text(status,style:const TextStyle(fontWeight:FontWeight.w700,color:green))]),
+          if(batchId.isNotEmpty)Text('DALAB ISKU XIRAN • '+batchId.substring(0,8),style:const TextStyle(color:green,fontSize:11,fontWeight:FontWeight.bold)),
           Text('Adeeg: '+(d['service']??d['itemName']??'').toString()),
           if((d['staffName']??'').toString().isNotEmpty)Text('Gabadha: '+d['staffName'].toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold)),
           Text('Taariikh: '+(d['date']??d['deliveryDate']??'').toString()+' • Waqti: '+(d['time']??d['deliveryTime']??'').toString()),
@@ -2900,8 +2904,10 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
       ...orders.map((o){
         Map<String,dynamic> details={};try{details=jsonDecode((o['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
         final st=status(o),payment=(o['payment_status']??'').toString();
+        final batchId=(o['batch_id']??'').toString();
         return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text((o['category']??'DALAB').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17,color:green)),
+          if(batchId.isNotEmpty)Text('DALAB ISKU XIRAN • '+batchId.substring(0,8),style:const TextStyle(color:green,fontSize:11,fontWeight:FontWeight.bold)),
           if((o['merchant_name']??'').toString().isNotEmpty)Text('Meherad: ${o['merchant_name']}'),
           if((o['category']??'').toString()=='SALON')...[
             if((details['service']??'').toString().isNotEmpty)Text('Adeegga: ${details['service']}'),
