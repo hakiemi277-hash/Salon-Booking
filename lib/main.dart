@@ -1744,8 +1744,6 @@ class _CakePageState extends State<CakePage> {
             TextField(controller: phone, keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Number telefoonka', border: OutlineInputBorder())),
             const SizedBox(height: 12),
-            TextField(controller: couponCode, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Coupon code (ikhtiyaari)', border: OutlineInputBorder())),
-            const SizedBox(height: 12),
             pick('Cabirka cake-ka', size, ['Yar','Dhexdhexaad','Weyn','Aad u weyn'], (v) => setState(() => size = v!)),
             pick('Tirada dabaqyada', tiers, ['1','2','3','4','5+'], (v) => setState(() => tiers = v!)),
             pick('Naqshadda', design, ['Casri','Classic','Wedding','Birthday','Custom'], (v) => setState(() => design = v!)),
@@ -1997,6 +1995,9 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
             const SizedBox(height: 12),
             TextField(controller: phone, keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Number telefoonka', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            TextField(controller: couponCode, textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(labelText: 'Coupon code (ikhtiyaari)', border: OutlineInputBorder())),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _chooseDate,
