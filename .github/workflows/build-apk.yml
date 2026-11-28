@@ -25,7 +25,7 @@ jobs:
           channel: stable
           cache: true
       - name: Generate Android project files
-        run: flutter create . --platforms=android
+        run: flutter create . --platforms=android,ios --org com.salonbooking
       - name: Ensure Android internet permission and app name
         run: |
           python3 - <<'PY'
@@ -64,7 +64,7 @@ jobs:
           channel: stable
           cache: true
       - name: Generate iOS project files
-        run: flutter create . --platforms=ios --org com.salonbooking
+        run: flutter create . --platforms=android,ios --org com.salonbooking
       - name: Configure iOS app display name and photo access
         run: |
           python3 - <<'PY'
