@@ -1298,16 +1298,18 @@ class _MerchantSearchPageState extends State<MerchantSearchPage>{
     final q=search.text.trim().toLowerCase();
     return merchants.where((m){
       final c=(m['category']??'').toString();
+      List<dynamic> allCategories=[c];
+      try{final saved=jsonDecode((m['categories_json']??'[]').toString());if(saved is List)allCategories=[...allCategories,...saved];}catch(_){}
       final name=(m['name']??'').toString().toLowerCase();
       final loc=(m['location']??'').toString().toLowerCase();
       final id=(m['id']??'').toString();
-      return (category=='DHAMMAAN'||c==category)&&(!favoritesOnly||favoriteIds.contains(id))&&(q.isEmpty||name.contains(q)||loc.contains(q));
+      return (category=='DHAMMAAN'||allCategories.map((x)=>x.toString()).contains(category))&&(!favoritesOnly||favoriteIds.contains(id))&&(q.isEmpty||name.contains(q)||loc.contains(q));
     }).toList();
   }
   void openMerchant(Map<String,dynamic> m){
     final id=(m['id']??'').toString(),name=(m['name']??'Meherad').toString();
     final loc=(m['location']??widget.city).toString(),phone=(m['owner_whatsapp']??'').toString();
-    final c=(m['category']??'').toString();
+    final c=category=='DHAMMAAN'?(m['category']??'').toString():category;
     if(c=='SALON'){
       final salon=Salon(id,name,loc,['Timaha','Qurxinta wajiga','Daryeelka jirka','Ciddiyaha','Makeup','Adeegyo kale'],whatsappNumber:phone);
       showModalBottomSheet(context:context,isScrollControlled:true,backgroundColor:Colors.white,builder:(_)=>_SalonServicesSheet(salon:salon));
@@ -1373,7 +1375,7 @@ class _MerchantRentalGalleryPageState extends State<MerchantRentalGalleryPage>{
     body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):items.isEmpty?const Center(child:Text('Meheraddan wali alaab kiraysi ah laguma darin.')):GridView.builder(
       padding:const EdgeInsets.all(12),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,childAspectRatio:.68,crossAxisSpacing:10,mainAxisSpacing:10),itemCount:items.length,
       itemBuilder:(ctx,i){final p=items[i];return Card(clipBehavior:Clip.antiAlias,child:InkWell(
-        onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalRequestPage(category:(p['category']??'').toString(),selectedItem:(p['name']??'').toString(),merchantId:widget.merchantId,merchantName:widget.merchantName,merchantLocation:widget.city))),
+        onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalRequestPage(category:(p['category']??'').toString(),selectedItem:(p['name']??'').toString(),rentalItemId:(p['id']??'').toString(),merchantId:widget.merchantId,merchantName:widget.merchantName,merchantLocation:widget.city))),
         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Expanded(child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.checkroom,color:green,size:40)))),
           Padding(padding:const EdgeInsets.all(8),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -1643,11 +1645,15 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
     if (!mounted) return;
     setState(() => saving = false);
     showDialog(context: context, barrierDismissible: false, builder: (dialogContext) => AlertDialog(
-      title: const Text('Codsiga decoration-ka waa la kaydiyey'),
-      content: const Text('Xogta codsiga waa la kaydiyey telefoonka. Hadda dooro WhatsApp ama wicitaan.'),
-      actions: [FilledButton(onPressed: () {
-        Navigator.pop(dialogContext);
-        showBookingContactOptions(context, widget.whatsappNumber,
+      title: const Text('DAMBIIShA WAA LAGU DARAY'),
+      content: const Text('Dalabka decoration-ka waa lagu daray dambiisha. Sii dooro adeegyo kale, kadibna dhammaan hal mar dir.'),
+      actions: [FilledButton(onPressed: () {Navigator.pop(dialogContext);Navigator.pop(context);}, child: const Text('HAGAAG'))],
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('BALLAN QABSO — DECORATION')
           'BALLAN DECORATION\\nMeherad: ' + widget.providerName +
           '\\nMagac: ' + customer.text.trim() + '\\nTelefoon: ' + phone.text.trim() +
           '\\nMunaasabadda: ' + event.text.trim() + '\\nTaariikh: ' + date.text.trim() +
@@ -1803,13 +1809,17 @@ class _CakePageState extends State<CakePage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Codsiga cake-ka waa la kaydiyey'),
-        content: const Text('Dalabkaaga waxaa lagu kaydiyey telefoonkan. Hadda dooro WhatsApp ama wicitaan si aad ula xiriirto meheradda.'),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              showBookingContactOptions(context, widget.whatsappNumber,
+        title: const Text('DAMBIIShA WAA LAGU DARAY'),
+        content: const Text('Dalabka cake-ka waa lagu daray dambiisha. Sii dooro adeegyo kale, kadibna dhammaan hal mar dir.'),
+        actions: [FilledButton(onPressed: () {Navigator.pop(dialogContext);Navigator.pop(context);},child: const Text('HAGAAG'))],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(widget.providerName == null ? 'BALLAN QABSO — CAKE'
                 'DALAB CAKE\nMeherad: ' + (widget.providerName ?? '') + '\nMagac: ' + customer.text.trim() + '\nTelefoon: ' + phone.text.trim() + '\nCabir: ' + size + '\nDabaqyo: ' + tiers + '\nNaqshad: ' + design + '\nQurxin/qoraal: ' + decoration.text.trim() + '\nTaariikh: ' + dateText + '\nWaqti: ' + deliveryTime!.format(context) + '\nGoobta: ' + place.text.trim());
             },
             child: const Text('WHATSAPP / CALL NOW'),
@@ -2058,7 +2068,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
         title: const Text('Codsiga waa la diray'),
         content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName +
             (widget.staffName == null ? '' : ' — ' + widget.staffName!) +
-            ' waa la diray. Sug jawaabta meheradda.'),
+            ' waa lagu daray dambiisha. Marka aad dhammaan adeegyada doorato, fur dambiisha oo dir.'),
         actions: [
           FilledButton(
             onPressed: () {
@@ -3339,7 +3349,7 @@ class _RentalGalleryPageState extends State<RentalGalleryPage> {
     body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):items.isEmpty?const Center(child:Text('Weli sawirro alaab ah laguma darin qaybtan magaalada.')):GridView.builder(
       padding:const EdgeInsets.all(12),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,childAspectRatio:.68,crossAxisSpacing:10,mainAxisSpacing:10),itemCount:items.length,
       itemBuilder:(ctx,i){final p=items[i];return Card(clipBehavior:Clip.antiAlias,child:InkWell(
-        onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalRequestPage(category:widget.category,selectedItem:(p['name']??'').toString(),merchantId:(p['merchant_id']??'').toString(),merchantName:(p['merchant_name']??'').toString(),merchantLocation:(p['location']??'').toString()))),
+        onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>RentalRequestPage(category:widget.category,selectedItem:(p['name']??'').toString(),rentalItemId:(p['id']??'').toString(),merchantId:(p['merchant_id']??'').toString(),merchantName:(p['merchant_name']??'').toString(),merchantLocation:(p['location']??'').toString()))),
         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Expanded(child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.checkroom,color:green,size:42)))),
           Padding(padding:const EdgeInsets.all(9),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -3460,8 +3470,8 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
     if (!mounted) return;
     setState(() => saving = false);
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => AlertDialog(
-      title: const Text('Codsiga kiraysiga waa la diray'),
-      content: const Text('Codsigaaga si guul leh ayaa loogu diray nidaamka SALON BOOKING. Meheraddu waxay ka jawaabi doontaa marka ay hubiso helitaanka agabka.'),
+      title: const Text('DAMBIIShA WAA LAGU DARAY'),
+      content: const Text('Codsiga kiraysiga waa lagu daray dambiisha. Sii dooro adeegyo kale, kadibna dhammaan hal mar dir.'),
       actions: [FilledButton(onPressed: () {
         Navigator.pop(ctx);
         Navigator.pop(context);
