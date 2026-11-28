@@ -1559,7 +1559,6 @@ class _CakePageState extends State<CakePage> {
       initialDate: deliveryDate ?? now,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 2),
-      selectableDayPredicate: (day) => workingDays.contains(day.weekday % 7),
     );
     if (value != null) setState(() => deliveryDate = value);
   }
