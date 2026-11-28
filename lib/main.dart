@@ -565,7 +565,7 @@ class _RegistrationGateState extends State<RegistrationGate> {
         SizedBox(width: double.infinity, height: 58, child: FilledButton.icon(style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white), onPressed: () => setState(() => customerRegistrationStarted = true), icon: const Icon(Icons.person), label: const Text('MACMIIL', style: TextStyle(fontWeight: FontWeight.bold)))),
         const SizedBox(height: 14),
         SizedBox(width: double.infinity, height: 58, child: OutlinedButton.icon(style: OutlinedButton.styleFrom(foregroundColor: green, side: const BorderSide(color: green, width: 1.5)), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MerchantLoginPage())), icon: const Icon(Icons.storefront), label: const Text('MULKIILAHA MEHERADDA', style: TextStyle(fontWeight: FontWeight.bold)))),
-      ]))));
+      ])))));
     return Scaffold(
       backgroundColor: pink,
       body: SafeArea(child: Center(child: SingleChildScrollView(

@@ -82,14 +82,28 @@ jobs:
         run: flutter pub get
       - name: Generate Android and iOS launcher icons
         run: dart run flutter_launcher_icons
-      - name: Build iOS release without signing
-        run: flutter build ios --release --no-codesign
+      - name: Configure iOS release build
+        run: flutter build ios --config-only
+      - name: Build iOS app without Apple signing
+        run: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
       - name: Package unsigned iOS app and IPA
         run: |
-          cd build/ios/iphoneos
-          ditto -c -k --sequesterRsrc --keepParent Runner.app "$GITHUB_WORKSPACE/salon-booking-ios-unsigned.zip"
+          APP_PATH="build/ios/Build/Products/Release-iphoneos/Runner.app"
+          test -d "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$GITHUB_WORKSPACE/salon-booking-ios-unsigned.zip"
           mkdir -p "$GITHUB_WORKSPACE/Payload"
-          ditto Runner.app "$GITHUB_WORKSPACE/Payload/Runner.app"
+          ditto "$APP_PATH" "$GITHUB_WORKSPACE/Payload/Runner.app"
           cd "$GITHUB_WORKSPACE"
           /usr/bin/zip -qry salon-booking-ios-unsigned.ipa Payload
           rm -rf Payload
