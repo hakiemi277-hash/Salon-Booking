@@ -2632,6 +2632,13 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
   Widget build(BuildContext context)=>Scaffold(
     appBar:AppBar(title:const Text('BALLAMAHAYGA IYO DALABYADAYDA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
     body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):orders.isEmpty?const Center(child:Text('Weli dalab ma lihid.')):ListView(padding:const EdgeInsets.all(14),children:[
+      ...orders.where((o){
+        if((o['category']??'').toString()!='SALON'||!['Sugaya jawaab','La aqbalay'].contains(status(o)))return false;
+        try{final d=jsonDecode((o['details_json']??'{}').toString()) as Map<String,dynamic>;final date=(d['appointmentDate']??d['date']??'').toString();final time=(d['appointmentTime']??d['time']??'').toString();if(date.isEmpty||time.isEmpty)return false;final at=DateTime.parse('${date}T${time}:00');final left=at.difference(DateTime.now());return !left.isNegative&&left<=const Duration(hours:24);}catch(_){return false;}
+      }).map((o){
+        Map<String,dynamic> d={};try{d=jsonDecode((o['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+        return Card(color:cream,child:ListTile(leading:const Icon(Icons.notifications_active,color:green,size:30),title:const Text('XUSUUSIN BALLAN',style:TextStyle(fontWeight:FontWeight.bold,color:green)),subtitle:Text('${d['service']??'Adeeg salon'} • ${d['appointmentDate']??d['date']??''} • ${d['appointmentTime']??d['time']??''}'),));
+      }),
       ...orders.map((o){
         Map<String,dynamic> details={};try{details=jsonDecode((o['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
         final st=status(o),payment=(o['payment_status']??'').toString();
