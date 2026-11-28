@@ -52,6 +52,8 @@ Widget salonImage(String? source, {BoxFit fit = BoxFit.cover, Widget? fallback})
   return fallback ?? const Icon(Icons.image_not_supported);
 }
 
+Widget _orderAlertLine(String label,String value)=>Padding(padding:const EdgeInsets.symmetric(vertical:3),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(width:92,child:Text('$label:',style:const TextStyle(fontWeight:FontWeight.bold))),Expanded(child:Text(value,style:const TextStyle(fontWeight:FontWeight.w600)))]));
+
 class SalonApi {
   static const String baseUrl = 'https://salon-booking-api.cabdihakiimjaamac112.workers.dev';
 
@@ -402,6 +404,12 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Ballamaha lama soo qaadi karin');
     return (b['bookings'] as List).cast<Map<String,dynamic>>();
   }
+  static Future<List<Map<String,dynamic>>> adminBookings(String token) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/admin/bookings'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Dalabyada lama soo qaadi karin');
+    return (b['bookings'] as List).cast<Map<String,dynamic>>();
+  }
 
   static Future<void> updateBookingStatus(String token,String id,String status) async {
     final r=await http.patch(Uri.parse('$baseUrl/api/bookings/$id'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode({'status':status}));
@@ -606,6 +614,10 @@ class _HomePageState extends State<HomePage> {
   int featuredPage=0;
   final PageController featuredController=PageController(viewportFraction:.84);
   Timer? featuredTimer;
+  Timer? adminOrderPollTimer;
+  final Set<String> seenAdminBookingIds=<String>{};
+  bool adminBookingSnapshotReady=false;
+  bool adminOrderAlertShowing=false;
   @override
   void initState(){
     super.initState(); loadFeatured(); loadSelectedCity(); loadSalons(); loadCustomerFirstName();
@@ -616,7 +628,63 @@ class _HomePageState extends State<HomePage> {
     });
   }
   @override
-  void dispose(){featuredTimer?.cancel();featuredController.dispose();super.dispose();}
+  void dispose(){featuredTimer?.cancel();adminOrderPollTimer?.cancel();featuredController.dispose();super.dispose();}
+  Future<void> _startAdminOrderAlerts() async {
+    adminOrderPollTimer?.cancel();
+    seenAdminBookingIds.clear();
+    adminBookingSnapshotReady=false;
+    await _checkAdminNewOrders();
+    adminOrderPollTimer=Timer.periodic(const Duration(seconds:15),(_)=>_checkAdminNewOrders());
+  }
+  Future<void> _checkAdminNewOrders() async {
+    final token=adminToken;
+    if(!mounted||!admin||token==null)return;
+    try{
+      final rows=await SalonApi.adminBookings(token);
+      if(!mounted)return;
+      if(!adminBookingSnapshotReady){
+        seenAdminBookingIds.addAll(rows.map((x)=>(x['id']??'').toString()).where((x)=>x.isNotEmpty));
+        adminBookingSnapshotReady=true;
+        return;
+      }
+      if(ModalRoute.of(context)?.isCurrent!=true)return;
+      final fresh=rows.where((x){
+        final id=(x['id']??'').toString();
+        final status=(x['status']??'').toString();
+        return id.isNotEmpty&&!seenAdminBookingIds.contains(id)&&status!='Lama heli karo';
+      }).toList();
+      seenAdminBookingIds.addAll(rows.map((x)=>(x['id']??'').toString()).where((x)=>x.isNotEmpty));
+      if(fresh.isEmpty||adminOrderAlertShowing)return;
+      adminOrderAlertShowing=true;
+      final first=fresh.first;
+      Map<String,dynamic> details={};
+      try{details=jsonDecode((first['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+      final customer=(first['customer_name']??'Macmiil').toString();
+      final category=(first['category']??'DALAB').toString();
+      final merchant=(first['merchant_name']??'Meherad').toString();
+      final service=(details['service']??details['itemName']??details['productName']??details['hallName']??'Dalab cusub').toString();
+      final when=(details['appointmentDate']??details['eventDate']??details['deliveryDate']??'').toString();
+      await showDialog<void>(context:context,barrierDismissible:false,builder:(dialogContext)=>Dialog(
+        insetPadding:const EdgeInsets.symmetric(horizontal:22,vertical:24),
+        child:Padding(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[
+          const Icon(Icons.notifications_active,color:green,size:54),
+          const SizedBox(height:12),
+          const Text('DALAB CUSUB!',textAlign:TextAlign.center,style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:green)),
+          const SizedBox(height:12),
+          Text(fresh.length==1?'Waxaa soo galay dalab cusub.':'Waxaa soo galay ${fresh.length} dalab cusub.',textAlign:TextAlign.center,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w700)),
+          const Divider(height:24),
+          _orderAlertLine('Macmiil',customer),
+          _orderAlertLine('Qaybta',category),
+          _orderAlertLine('Meheradda',merchant),
+          _orderAlertLine('Adeegga',service),
+          if(when.isNotEmpty)_orderAlertLine('Taariikhda',when),
+          const SizedBox(height:18),
+          SizedBox(width:double.infinity,child:FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:14)),onPressed:()=>Navigator.pop(dialogContext),icon:const Icon(Icons.receipt_long),label:const Text('WAA LA ARKAY — EEG DALABYADA'))),
+        ])),
+      ));
+      adminOrderAlertShowing=false;
+    }catch(_){}
+  }
   Future<void> loadCustomerFirstName() async {
     final prefs = await SharedPreferences.getInstance();
     final fullName = (prefs.getString('customer_name') ?? '').trim();
@@ -714,7 +782,7 @@ class _HomePageState extends State<HomePage> {
         content:TextField(controller:c,obscureText:true,decoration:const InputDecoration(labelText:'Admin password')),
         actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,c.text),child:const Text('Gal'))]));
       if(pass==null||pass.isEmpty||!mounted)return;
-      try{adminToken=await SalonApi.adminLogin(pass);if(mounted)setState(()=>admin=true);}
+      try{adminToken=await SalonApi.adminLogin(pass);if(mounted){setState(()=>admin=true);_startAdminOrderAlerts();}}
       catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));return;}
     }
     await addFeaturedProduct();
@@ -2191,18 +2259,29 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
       seenBookingIds.addAll(rows.map((x)=>(x['id']??'').toString()).where((x)=>x.isNotEmpty));
       if(fresh.isEmpty||orderAlertShowing)return;
       orderAlertShowing=true;
-      await showDialog<void>(context:context,barrierDismissible:true,builder:(dialogContext)=>AlertDialog(
-        title:const Text('DALAB CUSUB! ',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold,color:green)),
-        content:Text(fresh.length==1?'Waxaad heshay dalab cusub oo meheraddaada loo soo diray.':'Waxaad heshay ${fresh.length} dalab cusub oo meheraddaada loo soo diray.',textAlign:TextAlign.center),
-        actionsAlignment:MainAxisAlignment.center,
-        actions:[SizedBox(width:double.infinity,child:FilledButton(
-          style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white),
-          onPressed:(){
-            Navigator.pop(dialogContext);
-            Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token)));
-          },
-          child:const Text('EEG DALABKA',style:TextStyle(fontWeight:FontWeight.bold)),
-        ))],
+      final first=fresh.first;
+      Map<String,dynamic> details={};
+      try{details=jsonDecode((first['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+      final customer=(first['customer_name']??'Macmiil').toString();
+      final category=(first['category']??'DALAB').toString();
+      final service=(details['service']??details['itemName']??details['productName']??'Dalab cusub').toString();
+      final when=(details['appointmentDate']??details['eventDate']??details['deliveryDate']??'').toString();
+      await showDialog<void>(context:context,barrierDismissible:false,builder:(dialogContext)=>Dialog(
+        insetPadding:const EdgeInsets.symmetric(horizontal:22,vertical:24),
+        child:Padding(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[
+          const Icon(Icons.notifications_active,color:green,size:54),
+          const SizedBox(height:12),
+          const Text('DALAB CUSUB!',textAlign:TextAlign.center,style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:green)),
+          const SizedBox(height:12),
+          Text(fresh.length==1?'Macmiil ayaa dalab cusub kuu soo diray.':'Waxaa kuu yimid ${fresh.length} dalab cusub.',textAlign:TextAlign.center,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w700)),
+          const Divider(height:24),
+          _orderAlertLine('Macmiil',customer),
+          _orderAlertLine('Qaybta',category),
+          _orderAlertLine('Adeegga',service),
+          if(when.isNotEmpty)_orderAlertLine('Taariikhda',when),
+          const SizedBox(height:18),
+          SizedBox(width:double.infinity,child:FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:14)),onPressed:(){Navigator.pop(dialogContext);Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token)));},icon:const Icon(Icons.receipt_long),label:const Text('EEG DALABKA'))),
+        ])),
       ));
       orderAlertShowing=false;
     }catch(_){}
