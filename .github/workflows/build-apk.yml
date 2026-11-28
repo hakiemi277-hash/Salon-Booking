@@ -84,13 +84,20 @@ jobs:
         run: dart run flutter_launcher_icons
       - name: Build iOS release without signing
         run: flutter build ios --release --no-codesign
-      - name: Package unsigned iOS app
+      - name: Package unsigned iOS app and IPA
         run: |
           cd build/ios/iphoneos
           ditto -c -k --sequesterRsrc --keepParent Runner.app "$GITHUB_WORKSPACE/salon-booking-ios-unsigned.zip"
-      - name: Upload unsigned iOS app
+          mkdir -p "$GITHUB_WORKSPACE/Payload"
+          ditto Runner.app "$GITHUB_WORKSPACE/Payload/Runner.app"
+          cd "$GITHUB_WORKSPACE"
+          /usr/bin/zip -qry salon-booking-ios-unsigned.ipa Payload
+          rm -rf Payload
+      - name: Upload unsigned iOS app and IPA
         uses: actions/upload-artifact@v4
         with:
           name: salon-booking-ios-unsigned
-          path: salon-booking-ios-unsigned.zip
+          path: |
+            salon-booking-ios-unsigned.zip
+            salon-booking-ios-unsigned.ipa
           if-no-files-found: error
