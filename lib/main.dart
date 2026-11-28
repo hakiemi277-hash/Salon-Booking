@@ -485,6 +485,7 @@ class _RegistrationGateState extends State<RegistrationGate> {
   final whatsappController = TextEditingController();
   bool loading = true;
   bool saving = false;
+  bool customerRegistrationStarted = false;
   String? error;
 
   @override
@@ -495,9 +496,14 @@ class _RegistrationGateState extends State<RegistrationGate> {
 
   Future<void> _loadRegistration() async {
     final prefs = await SharedPreferences.getInstance();
+    final ownerToken = prefs.getString('owner_token');
     final name = prefs.getString('customer_name');
     final phone = prefs.getString('customer_phone');
     if (!mounted) return;
+    if (ownerToken != null && ownerToken.trim().isNotEmpty) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => OwnerStaffPage(token: ownerToken)));
+      return;
+    }
     if (name != null && name.trim().isNotEmpty && phone != null && phone.trim().isNotEmpty) {
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
       return;
@@ -541,6 +547,17 @@ class _RegistrationGateState extends State<RegistrationGate> {
   @override
   Widget build(BuildContext context) {
     if (loading) return const Scaffold(backgroundColor: pink, body: Center(child: CircularProgressIndicator(color: green)));
+    if (!customerRegistrationStarted) return Scaffold(
+      backgroundColor: cream,
+      body: SafeArea(child: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Image.asset('assets/salon_logo.png', width: 300, height: 112, fit: BoxFit.contain),
+        const SizedBox(height: 18),
+        const Text('DOORO NOOCA GELITAANKA', style: TextStyle(color: green, fontWeight: FontWeight.bold, fontSize: 20)),
+        const SizedBox(height: 24),
+        SizedBox(width: double.infinity, height: 58, child: FilledButton.icon(style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white), onPressed: () => setState(() => customerRegistrationStarted = true), icon: const Icon(Icons.person), label: const Text('MACMIIL', style: TextStyle(fontWeight: FontWeight.bold)))),
+        const SizedBox(height: 14),
+        SizedBox(width: double.infinity, height: 58, child: OutlinedButton.icon(style: OutlinedButton.styleFrom(foregroundColor: green, side: const BorderSide(color: green, width: 1.5)), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MerchantLoginPage())), icon: const Icon(Icons.storefront), label: const Text('MULKIILAHA MEHERADDA', style: TextStyle(fontWeight: FontWeight.bold)))),
+      ]))));
     return Scaffold(
       backgroundColor: pink,
       body: SafeArea(child: Center(child: SingleChildScrollView(
@@ -2082,8 +2099,10 @@ class _MerchantLoginPageState extends State<MerchantLoginPage> {
     setState(()=>loading=true);
     try{
       final token=await SalonApi.ownerLogin(username.text.trim(),password.text);
+      final prefs=await SharedPreferences.getInstance();
+      await prefs.setString('owner_token',token);
       if(!mounted)return;
-      Navigator.pushReplacement(context,MaterialPageRoute(builder:(_)=>OwnerStaffPage(token:token)));
+      Navigator.pushAndRemoveUntil(context,MaterialPageRoute(builder:(_)=>OwnerStaffPage(token:token)),(route)=>false);
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
     if(mounted)setState(()=>loading=false);
   }
@@ -2239,7 +2258,7 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
     final name=(data['merchantName']??'Meheraddaada').toString();
     return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPaymentsPage(token:widget.token))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPromotionPage(token:widget.token))),icon:const Icon(Icons.campaign),tooltip:'Boosaska xayeysiiska'),
       IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRevenuePage(token:widget.token))),icon:const Icon(Icons.bar_chart),tooltip:'Warbixinta ganacsiga'),
-      IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+      IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh)),IconButton(tooltip:'LOGOUT',icon:const Icon(Icons.logout),onPressed:()async{final prefs=await SharedPreferences.getInstance();await prefs.remove('owner_token');if(!mounted)return;Navigator.pushAndRemoveUntil(context,MaterialPageRoute(builder:(_)=>const RegistrationGate()),(route)=>false);})]),
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
         Card(child:ListTile(
