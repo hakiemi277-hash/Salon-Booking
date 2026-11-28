@@ -1741,17 +1741,6 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('BALLAN QABSO — DECORATION')
-          'BALLAN DECORATION\\nMeherad: ' + widget.providerName +
-          '\\nMagac: ' + customer.text.trim() + '\\nTelefoon: ' + phone.text.trim() +
-          '\\nMunaasabadda: ' + event.text.trim() + '\\nTaariikh: ' + date.text.trim() +
-          '\\nGoobta: ' + place.text.trim() + '\\nFaahfaahin: ' + details.text.trim());
-      }, child: const Text('WHATSAPP / CALL NOW'))],
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('BALLAN QABSO — DECORATION'), backgroundColor: green, foregroundColor: Colors.white),
     body: ListView(padding: const EdgeInsets.all(18), children: [
       Text(widget.providerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
@@ -1893,19 +1882,6 @@ class _CakePageState extends State<CakePage> {
         title: const Text('DAMBIIShA WAA LAGU DARAY'),
         content: const Text('Dalabka cake-ka waa lagu daray dambiisha. Sii dooro adeegyo kale, kadibna dhammaan hal mar dir.'),
         actions: [FilledButton(onPressed: () {Navigator.pop(dialogContext);Navigator.pop(context);},child: const Text('HAGAAG'))],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.providerName == null ? 'BALLAN QABSO — CAKE'
-                'DALAB CAKE\nMeherad: ' + (widget.providerName ?? '') + '\nMagac: ' + customer.text.trim() + '\nTelefoon: ' + phone.text.trim() + '\nCabir: ' + size + '\nDabaqyo: ' + tiers + '\nNaqshad: ' + design + '\nQurxin/qoraal: ' + decoration.text.trim() + '\nTaariikh: ' + dateText + '\nWaqti: ' + deliveryTime!.format(context) + '\nGoobta: ' + place.text.trim());
-            },
-            child: const Text('WHATSAPP / CALL NOW'),
-          ),
-        ],
       ),
     );
   }
@@ -3434,8 +3410,8 @@ class _RentalGalleryPageState extends State<RentalGalleryPage> {
 }
 
 class RentalRequestPage extends StatefulWidget {
-  const RentalRequestPage({super.key, required this.category, required this.selectedItem, required this.merchantId, required this.merchantName, required this.merchantLocation});
-  final String category, selectedItem, merchantId, merchantName, merchantLocation;
+  const RentalRequestPage({super.key, required this.category, required this.selectedItem, required this.rentalItemId, required this.merchantId, required this.merchantName, required this.merchantLocation});
+  final String category, selectedItem, rentalItemId, merchantId, merchantName, merchantLocation;
   @override
   State<RentalRequestPage> createState() => _RentalRequestPageState();
 }
