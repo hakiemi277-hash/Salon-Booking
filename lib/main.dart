@@ -549,6 +549,7 @@ class HomePage extends StatefulWidget {
 }
 class _HomePageState extends State<HomePage> {
   bool admin = false;
+  String customerFirstName = '';
   String selectedCity = 'Hargeysa';
   static const List<String> activeCities = ['Hargeysa', 'Burco'];
   static const List<String> upcomingCities = ['Boorama', 'Berbera', 'Ceerigaabo', 'Gebiley'];
@@ -561,7 +562,7 @@ class _HomePageState extends State<HomePage> {
   Timer? featuredTimer;
   @override
   void initState(){
-    super.initState(); loadFeatured(); loadSelectedCity(); loadSalons();
+    super.initState(); loadFeatured(); loadSelectedCity(); loadSalons(); loadCustomerFirstName();
     featuredTimer=Timer.periodic(const Duration(seconds:3),(_){
       if(!mounted||featured.length<2||!featuredController.hasClients)return;
       featuredPage=(featuredPage+1)%featured.length;
@@ -570,6 +571,12 @@ class _HomePageState extends State<HomePage> {
   }
   @override
   void dispose(){featuredTimer?.cancel();featuredController.dispose();super.dispose();}
+  Future<void> loadCustomerFirstName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final fullName = (prefs.getString('customer_name') ?? '').trim();
+    final firstName = fullName.isEmpty ? '' : fullName.split(RegExp(r'\\s+')).first;
+    if (mounted) setState(() => customerFirstName = firstName);
+  }
   Future<void> loadSelectedCity() async {final p=await SharedPreferences.getInstance();final saved=p.getString('selected_city');if(mounted&&activeCities.contains(saved))setState(()=>selectedCity=saved!);}
 
   Future<void> loadSalons() async {
@@ -851,10 +858,16 @@ class _HomePageState extends State<HomePage> {
     body: ListView(padding: const EdgeInsets.all(14), children: [
       Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(colors: [green, Color(0xFF164B39)])),
-        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Ku soo dhowow', style: TextStyle(color: Colors.white70)), SizedBox(height: 5),
-          Text('Quruxdaada, hal meel.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.bold)),
-          SizedBox(height: 8), Text('Dooro qaybta aad u baahan tahay.', style: TextStyle(color: Colors.white))])),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            customerFirstName.isEmpty ? 'SOO DHAWOOW MARWO' : 'SOO DHAWOOW MARWO $customerFirstName'.toUpperCase(),
+            style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 9),
+          const Text('Quruxdaada, hal meel.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('Dooro qaybta aad u baahan tahay.', style: TextStyle(color: Colors.white))
+        ])),
       const SizedBox(height: 16),
       Card(child:ListTile(leading:const Icon(Icons.location_on,color:green),title:const Text('Magaaladaada'),subtitle:Text(selectedCity,style:const TextStyle(fontWeight:FontWeight.bold,color:green)),trailing:const Icon(Icons.keyboard_arrow_down),onTap:chooseCity)),
       featuredSection(),
