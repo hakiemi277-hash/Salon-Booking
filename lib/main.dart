@@ -361,6 +361,13 @@ class SalonApi {
     final b=jsonDecode(r.body) as Map<String,dynamic>;
     if(r.statusCode!=201||b['ok']!=true) throw Exception(b['error']??'Dakhliga lama diiwaangelin');
   }
+  static Future<Map<String,dynamic>> ownerRevenue(String token,String from,String to) async {
+    final r=await http.get(Uri.parse('$baseUrl/api/owner/revenue?from=$from&to=$to'),headers:{'Authorization':'Bearer $token'});
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Warbixinta dakhliga lama helin');
+    return b;
+  }
+
   static Future<Map<String,dynamic>> adminRevenue(String token,String from,String to) async {
     final r=await http.get(Uri.parse('$baseUrl/api/admin/revenue?from=$from&to=$to'),headers:{'Authorization':'Bearer $token'});
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -2174,9 +2181,17 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
     final activeStaff=staff.where((x)=>x['active']!=0&&x['active']!='0').toList();
     final name=(data['merchantName']??'Meheraddaada').toString();
     return Scaffold(appBar:AppBar(title:Text(name),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPaymentsPage(token:widget.token))),icon:const Icon(Icons.payments),tooltip:'Xaqiiji lacagaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token))),icon:const Icon(Icons.calendar_month),tooltip:'Ballamaha'),IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerPromotionPage(token:widget.token))),icon:const Icon(Icons.campaign),tooltip:'Boosaska xayeysiiska'),
+      IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRevenuePage(token:widget.token))),icon:const Icon(Icons.bar_chart),tooltip:'Warbixinta ganacsiga'),
       IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
+        Card(child:ListTile(
+          leading:const CircleAvatar(backgroundColor:cream,child:Icon(Icons.bar_chart,color:green)),
+          title:const Text('WARBIXINTA GANACSIGA',style:TextStyle(fontWeight:FontWeight.bold)),
+          subtitle:const Text('Dakhliga iyo tirada adeegyada aad dhammeystirtay'),
+          trailing:const Icon(Icons.arrow_forward_ios,color:green),
+          onTap:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRevenuePage(token:widget.token))),
+        )),
         Card(child:ListTile(
           leading:const CircleAvatar(backgroundColor:cream,child:Icon(Icons.schedule,color:green)),
           title:const Text('JADWALKA MEHERADDA',style:TextStyle(fontWeight:FontWeight.bold)),
@@ -2199,6 +2214,37 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
 }
 
 
+
+class OwnerRevenuePage extends StatefulWidget {
+  const OwnerRevenuePage({super.key,required this.token});
+  final String token;
+  @override
+  State<OwnerRevenuePage> createState()=>_OwnerRevenuePageState();
+}
+class _OwnerRevenuePageState extends State<OwnerRevenuePage>{
+  DateTime from=DateTime(DateTime.now().year,DateTime.now().month,1),to=DateTime.now();
+  Map<String,dynamic>? report;
+  bool loading=true;
+  String? error;
+  String date(DateTime d)=>'${d.year.toString().padLeft(4,'0')}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+  @override void initState(){super.initState();load();}
+  Future<void> load() async {
+    if(mounted)setState(()=>{loading=true,error=null});
+    try{final x=await SalonApi.ownerRevenue(widget.token,date(from),date(to));if(mounted)setState(()=>{report=x,loading=false});}
+    catch(e){if(mounted)setState(()=>{error=e.toString(),loading=false});}
+  }
+  @override Widget build(BuildContext context){
+    final totals=(report?['totals'] as List?)?.cast<Map<String,dynamic>>()??<Map<String,dynamic>>[];
+    return Scaffold(appBar:AppBar(title:const Text('WARBIXINTA GANACSIGA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+      body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
+        Card(child:ListTile(title:const Text('Muddada warbixinta'),subtitle:Text('${date(from)} ilaa ${date(to)}'),trailing:IconButton(icon:const Icon(Icons.date_range),onPressed:()async{final d=await showDateRangePicker(context:context,firstDate:DateTime(2020),lastDate:DateTime.now(),initialDateRange:DateTimeRange(start:from,end:to));if(d!=null){setState(()=>{from=d.start,to=d.end});load();}}))),
+        const Text('DAKHLIGA LA DIIWAANGELIYEY',style:TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17)),
+        if(totals.isEmpty)const Padding(padding:EdgeInsets.all(16),child:Text('Muddadan dakhli la diiwaangeliyey ma jiro.')),
+        ...totals.map((x)=>Card(child:ListTile(leading:const Icon(Icons.payments,color:green),title:Text('${x['jobs']??0} adeeg oo dhammaaday'),trailing:Text('${x['total']??0} ${x['currency']??''}',style:const TextStyle(fontWeight:FontWeight.bold,color:green,fontSize:17))))),
+        const Padding(padding:EdgeInsets.only(top:12),child:Text('Warbixintani waxay muujinaysaa dakhliga milkiiluhu gacantiisa ku diiwaangeliyey marka ballantu dhammaato. Ma aha lacag si toos ah app-ku u xaqiijiyey.',style:TextStyle(fontSize:12,color:Colors.black54))),
+      ]));
+  }
+}
 
 class OwnerPromotionPage extends StatefulWidget {
   const OwnerPromotionPage({super.key,required this.token});
