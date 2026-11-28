@@ -859,7 +859,7 @@ class _HomePageState extends State<HomePage> {
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPromotionPage(token:adminToken!))),icon:const Icon(Icons.campaign),tooltip:'Xaqiiji boosaska xayeysiiska'),
         if (admin && adminToken!=null) IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>AdminPaymentSettingsPage(token:adminToken!))),icon:const Icon(Icons.settings_applications),tooltip:'Hababka lacagta iyo sarifka'),
         IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>MerchantSearchPage(city:selectedCity))),icon:const Icon(Icons.search),tooltip:'Raadi meherad'),
-        IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Dalabyadayda'),
+        IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomerOrdersPage())),icon:const Icon(Icons.receipt_long),tooltip:'Ballamahayga iyo dalabyadayda'),
         IconButton(onPressed: openMerchantLogin, icon: const Icon(Icons.storefront), tooltip: 'Gelitaanka meheradda'),
         IconButton(onPressed: openAdminTools, icon: const Icon(Icons.admin_panel_settings), tooltip: 'Admin')]),
     body: ListView(padding: const EdgeInsets.all(14), children: [
@@ -2630,7 +2630,7 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
   String status(Map<String,dynamic> o)=>(o['status']??'Sugaya jawaab').toString();
   @override
   Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('DALABYADAYDA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
+    appBar:AppBar(title:const Text('BALLAMAHAYGA IYO DALABYADAYDA'),backgroundColor:green,foregroundColor:Colors.white,actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
     body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):orders.isEmpty?const Center(child:Text('Weli dalab ma lihid.')):ListView(padding:const EdgeInsets.all(14),children:[
       ...orders.map((o){
         Map<String,dynamic> details={};try{details=jsonDecode((o['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
@@ -2638,7 +2638,13 @@ class _CustomerOrdersPageState extends State<CustomerOrdersPage> {
         return Card(margin:const EdgeInsets.only(bottom:10),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text((o['category']??'DALAB').toString(),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17,color:green)),
           if((o['merchant_name']??'').toString().isNotEmpty)Text('Meherad: ${o['merchant_name']}'),
-          if(details.isNotEmpty)Text(details.entries.map((e)=>'${e.key}: ${e.value}').join(' • ')),
+          if((o['category']??'').toString()=='SALON')...[
+            if((details['service']??'').toString().isNotEmpty)Text('Adeegga: ${details['service']}'),
+            if((details['appointmentDate']??details['date']??'').toString().isNotEmpty)Text('Taariikhda ballanta: ${details['appointmentDate']??details['date']}'),
+            if((details['appointmentTime']??details['time']??'').toString().isNotEmpty)Text('Saacadda: ${details['appointmentTime']??details['time']}'),
+            if((details['staffName']??'').toString().isNotEmpty)Text('Shaqaalaha aad dooratay: ${details['staffName']}'),
+            if((details['notes']??'').toString().isNotEmpty)Text('Faahfaahin: ${details['notes']}'),
+          ] else if(details.isNotEmpty)Text(details.entries.map((e)=>'${e.key}: ${e.value}').join(' • ')),
           const SizedBox(height:5),Text('Xaaladda dalabka: $st',style:const TextStyle(fontWeight:FontWeight.w600)),
           if(payment.isNotEmpty)Text('Xaaladda lacagta: $payment'),
           if((st=='La aqbalay'||(o['category']=='KIRAYSO'&&st=='Sugaya lacag-bixin')||payment=='Lama xaqiijin')&&payment!='Sugaya xaqiijin'&&st!='PURCHASED')Padding(padding:const EdgeInsets.only(top:8),child:SizedBox(width:double.infinity,child:FilledButton(onPressed:()=>pay(o),style:FilledButton.styleFrom(backgroundColor:green),child:const Text('DIR LACAGTA')))),
