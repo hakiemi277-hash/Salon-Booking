@@ -703,9 +703,9 @@ class _HomePageState extends State<HomePage> {
     await addFeaturedProduct();
   }
   Future<void> addFeaturedProduct() async {
-    final title=TextEditingController(),desc=TextEditingController(),price=TextEditingController(),img=TextEditingController();
+    final title=TextEditingController(),desc=TextEditingController(),price=TextEditingController(),img=TextEditingController(),img2=TextEditingController();
     String category='SALON',currency='USD';
-    String? selectedImage;
+    String? selectedImage,selectedImage2;
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
       title:const Text('Ku dar ALAAB CUSUB'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
         TextField(controller:title,decoration:const InputDecoration(labelText:'Magaca alaabta')),
@@ -716,11 +716,20 @@ class _HomePageState extends State<HomePage> {
         SizedBox(height:120,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(color:cream,child:salonImage(selectedImage,fit:BoxFit.cover,fallback:const Icon(Icons.image,size:40,color:green))))),
         OutlinedButton.icon(onPressed:() async {try{final picked=await pickSalonImage();if(picked!=null)refresh(()=>selectedImage=picked);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.photo_library),label:const Text('KA DOORO GALLERY-GA')),
         TextField(controller:img,decoration:const InputDecoration(labelText:'Ama geli HTTPS URL (ikhtiyaari)'),onChanged:(v){if(v.trim().startsWith('https://'))refresh(()=>selectedImage=v.trim());}),
+        const SizedBox(height:12),
+        SizedBox(height:100,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(color:cream,child:salonImage(selectedImage2,fit:BoxFit.cover,fallback:const Icon(Icons.image_outlined,size:34,color:green))))),
+        OutlinedButton.icon(onPressed:() async {try{final picked=await pickSalonImage();if(picked!=null)refresh(()=>selectedImage2=picked);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.add_photo_alternate),label:const Text('BEDDEL / KU DAR SAWIRKA LABAAD')),
+        TextField(controller:img2,decoration:const InputDecoration(labelText:'URL sawirka labaad (ikhtiyaari)'),onChanged:(v){if(v.trim().startsWith('https://'))refresh(()=>selectedImage2=v.trim());}),
+        const SizedBox(height:12),
+        SizedBox(height:100,width:double.infinity,child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(color:cream,child:salonImage(selectedImage2,fit:BoxFit.cover,fallback:const Icon(Icons.image_outlined,size:34,color:green))))),
+        OutlinedButton.icon(onPressed:() async {try{final picked=await pickSalonImage();if(picked!=null)refresh(()=>selectedImage2=picked);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}},icon:const Icon(Icons.add_photo_alternate),label:const Text('KU DAR SAWIRKA LABAAD')),
+        TextField(controller:img2,decoration:const InputDecoration(labelText:'URL sawirka labaad (ikhtiyaari)'),onChanged:(v){if(v.trim().startsWith('https://'))refresh(()=>selectedImage2=v.trim());}),
       ])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))])));
     if(ok!=true||title.text.trim().isEmpty||!mounted)return;
-    final imageValue=selectedImage??img.text.trim();
+    final imageValue=selectedImage??img.text.trim(),imageValue2=selectedImage2??img2.text.trim();
+    if(imageValue2.isNotEmpty&&!imageValue2.startsWith('data:image/')&&!imageValue2.startsWith('https://')){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Sawirka labaad dooro ama geli HTTPS URL sax ah.')));return;}
     if(imageValue.isNotEmpty&&!imageValue.startsWith('data:image/')&&!imageValue.startsWith('https://')){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Dooro sawir ama geli HTTPS URL sax ah.')));return;}
-    try{await SalonApi.addFeaturedProduct(adminToken!,{'title':title.text.trim(),'description':desc.text.trim(),'price':price.text.trim(),'currency':currency,'category':category,'imageUrl':imageValue});await loadFeatured();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Alaabta waa la daabacay.')));}
+    try{await SalonApi.addFeaturedProduct(adminToken!,{'title':title.text.trim(),'description':desc.text.trim(),'price':price.text.trim(),'currency':currency,'category':category,'imageUrl':imageValue,'imageUrl2':imageValue2});await loadFeatured();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Alaabta waa la daabacay.')));}
     catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   }
   Future<void> editFeatured(Map<String,dynamic> p) async {
@@ -728,6 +737,9 @@ class _HomePageState extends State<HomePage> {
     final desc=TextEditingController(text:(p['description']??'').toString());
     final price=TextEditingController(text:(p['price']??'').toString());
     final existingImage=(p['image_url']??'').toString();
+    final existingImage2=(p['image_url2']??'').toString();
+    final img2=TextEditingController(text:existingImage2.startsWith('https://')?existingImage2:'');
+    String? selectedImage2=existingImage2.isNotEmpty?existingImage2:null;
     final img=TextEditingController(text:existingImage.startsWith('https://')?existingImage:'');
     String? selectedImage=existingImage.isNotEmpty?existingImage:null;
     String category=(p['category']??'SALON').toString(),currency=(p['currency']??'USD').toString();
@@ -746,9 +758,11 @@ class _HomePageState extends State<HomePage> {
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Kaydi'))])));
     if(ok!=true||title.text.trim().isEmpty||!mounted)return;
     final imageValue=selectedImage??img.text.trim();
+    final imageValue2=selectedImage2??img2.text.trim();
+    if(imageValue2.isNotEmpty&&!imageValue2.startsWith('data:image/')&&!imageValue2.startsWith('https://')){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Sawirka labaad dooro ama geli HTTPS URL sax ah.')));return;}
     if(imageValue.isNotEmpty&&!imageValue.startsWith('data:image/')&&!imageValue.startsWith('https://')){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Dooro sawir ama geli HTTPS URL sax ah.')));return;}
     try{
-      await SalonApi.updateFeaturedProduct(adminToken!,p['id'].toString(),{'title':title.text.trim(),'description':desc.text.trim(),'price':price.text.trim(),'currency':currency,'category':category,'imageUrl':imageValue});
+      await SalonApi.updateFeaturedProduct(adminToken!,p['id'].toString(),{'title':title.text.trim(),'description':desc.text.trim(),'price':price.text.trim(),'currency':currency,'category':category,'imageUrl':imageValue,'imageUrl2':imageValue2});
       await loadFeatured();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Alaabta waa la cusboonaysiiyey.')));
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
@@ -765,7 +779,10 @@ class _HomePageState extends State<HomePage> {
       if(featured.isEmpty)const Text('Weli alaab cusub lama soo bandhigin.'),
       if(featured.isNotEmpty)SizedBox(height:180,child:PageView.builder(controller:featuredController,itemCount:featured.length,onPageChanged:(i)=>featuredPage=i,itemBuilder:(ctx,i){
         final p=featured[i];return Padding(padding:const EdgeInsets.only(right:10),child:Card(clipBehavior:Clip.antiAlias,child:Row(children:[
-          SizedBox(width:112,height:180,child:(p['image_url']??'').toString().isNotEmpty?salonImage(p['image_url'].toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.shopping_bag,color:green,size:36))):Container(color:cream,child:const Icon(Icons.shopping_bag,color:green,size:36))),
+          SizedBox(width:224,height:180,child:Row(children:[
+            Expanded(child:(p['image_url']??'').toString().isNotEmpty?salonImage(p['image_url'].toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.shopping_bag,color:green,size:36))):Container(color:cream,child:const Icon(Icons.shopping_bag,color:green,size:36))),
+            if((p['image_url2']??'').toString().isNotEmpty)Expanded(child:salonImage(p['image_url2'].toString(),fit:BoxFit.cover,fallback:Container(color:cream,child:const Icon(Icons.image,color:green,size:30)))),
+          ])),
           Expanded(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.center,children:[
             Text(p['title']??'',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:15)),
             Text(p['category']??'',style:const TextStyle(color:green,fontSize:11)),
