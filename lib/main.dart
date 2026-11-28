@@ -1710,15 +1710,9 @@ class _DecorationBookingPageState extends State<DecorationBookingPage> {
     setState(() => saving = true);
     final prefs = await SharedPreferences.getInstance();
     try {
-      await SalonApi.createBooking(
-        category: 'DECORATION',
-        merchantId: widget.merchantId,
-        customerName: customer.text.trim(),
-        customerPhone: phone.text.trim(),
-        customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
-        details: {'provider': widget.providerName, 'event': event.text.trim(), 'date': date.text.trim(),
-          'place': place.text.trim(), 'details': details.text.trim()},
-      );
+      await SalonCartStore.add({'category':'DECORATION','merchantId':widget.merchantId,'merchantName':widget.providerName,
+        'title':'Decoration — '+event.text.trim(),'customerName':customer.text.trim(),'customerPhone':phone.text.trim(),
+        'details':{'provider':widget.providerName,'event':event.text.trim(),'date':date.text.trim(),'place':place.text.trim(),'details':details.text.trim()}});
     } catch (e) {
       if (!mounted) return;
       setState(() => saving = false);
@@ -1858,17 +1852,10 @@ class _CakePageState extends State<CakePage> {
     setState(() => saving = true);
     final prefs = await SharedPreferences.getInstance();
     try {
-      await SalonApi.createBooking(
-        category: 'CAKES',
-        merchantId: widget.merchantId,
-        customerName: customer.text.trim(),
-        customerPhone: phone.text.trim(),
-        customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
-        details: {'provider': widget.providerName ?? 'Meherad aan wali la dooran', 'size': size,
-          'tiers': tiers, 'design': design, 'decorationAndText': decoration.text.trim(),
-          'deliveryDate': deliveryDate!.toIso8601String().split('T').first,
-          'deliveryTime': deliveryTime!.format(context), 'deliveryLocation': place.text.trim()},
-      );
+      await SalonCartStore.add({'category':'CAKES','merchantId':widget.merchantId,'merchantName':widget.providerName,
+        'title':'Cake — '+size,'customerName':customer.text.trim(),'customerPhone':phone.text.trim(),
+        'details':{'provider':widget.providerName??'Meherad aan wali la dooran','size':size,'tiers':tiers,'design':design,'decorationAndText':decoration.text.trim(),
+          'deliveryDate':deliveryDate!.toIso8601String().split('T').first,'deliveryTime':deliveryTime!.format(context),'deliveryLocation':place.text.trim()}});
     } catch (e) {
       if (!mounted) return;
       setState(() => saving = false);
@@ -2111,25 +2098,13 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
     late final Map<String,dynamic> bookingResult;
     final dateText = _dateKey(selectedDate!);
     try {
-      bookingResult = await SalonApi.createBooking(
-        category: 'SALON',
-        merchantId: widget.merchantId,
-        customerName: name.text.trim(),
-        customerPhone: phone.text.trim(),
-        customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
-        details: {
-          'salon': widget.salonName,
-          'service': widget.serviceName,
-          if(widget.staffId!=null)'staffId':widget.staffId,
-          if(widget.staffName!=null)'staffName':widget.staffName,
-          'date': dateText,
-          'time': selectedTime,
-          'appointmentDate': dateText,
-          'appointmentTime': selectedTime,
-          'notes': notes.text.trim(),
-          if(couponCode.text.trim().isNotEmpty)'couponCode':couponCode.text.trim().toUpperCase(),
-        },
-      );
+      final cartId=await SalonCartStore.add({'category':'SALON','merchantId':widget.merchantId,'merchantName':widget.salonName,
+        'title':'Salon — '+widget.serviceName,'customerName':name.text.trim(),'customerPhone':phone.text.trim(),
+        'details':{'salon':widget.salonName,'service':widget.serviceName,
+          if(widget.staffId!=null)'staffId':widget.staffId,if(widget.staffName!=null)'staffName':widget.staffName,
+          'date':dateText,'time':selectedTime,'appointmentDate':dateText,'appointmentTime':selectedTime,'notes':notes.text.trim(),
+          if(couponCode.text.trim().isNotEmpty)'couponCode':couponCode.text.trim().toUpperCase()}});
+      bookingResult={'id':cartId,'status':'Dambiisha'};
     } catch (e) {
       if (!mounted) return;
       setState(() => saving = false);
@@ -3531,17 +3506,12 @@ class _RentalRequestPageState extends State<RentalRequestPage> {
     final p = await SharedPreferences.getInstance();
     late final Map<String,dynamic> bookingResult;
     try {
-      bookingResult = await SalonApi.createBooking(
-        category: 'KIRAYSO',
-        merchantId: widget.merchantId,
-        customerName: customer.text.trim(),
-        customerPhone: phone.text.trim(),
-        customerWhatsApp: p.getString('customer_whatsapp') ?? phone.text.trim(),
-        details: {'rentalCategory': widget.category, 'item': item.text.trim(), 'merchantName':widget.merchantName, 'merchantLocation':widget.merchantLocation, 'size': size.text.trim(),
-          'startDate': startDate!.toIso8601String().split('T').first,
-          'endDate': endDate!.toIso8601String().split('T').first,
-          'location': location.text.trim(), 'notes': notes.text.trim()},
-      );
+      final cartId=await SalonCartStore.add({'category':'KIRAYSO','merchantId':widget.merchantId,'merchantName':widget.merchantName,
+        'title':'Kiraysi — '+item.text.trim(),'customerName':customer.text.trim(),'customerPhone':phone.text.trim(),
+        'details':{'rentalCategory':widget.category,'rentalItemId':widget.rentalItemId,'item':item.text.trim(),'merchantName':widget.merchantName,'merchantLocation':widget.merchantLocation,'size':size.text.trim(),
+          'startDate':startDate!.toIso8601String().split('T').first,'endDate':endDate!.toIso8601String().split('T').first,
+          'location':location.text.trim(),'notes':notes.text.trim()}});
+      bookingResult={'id':cartId,'status':'Dambiisha'};
     } catch (e) {
       if (!mounted) return;
       setState(() => saving = false);
