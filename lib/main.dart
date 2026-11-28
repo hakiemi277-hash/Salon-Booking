@@ -319,6 +319,14 @@ class SalonApi {
     if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Shaqaalaha lama soo qaadi karin');
     return (b['staff'] as List).cast<Map<String,dynamic>>();
   }
+
+  static Future<Set<String>> availableSalonTimes(String merchantId,String date,{String? staffId}) async {
+    final query=<String,String>{'merchantId':merchantId,'date':date,if(staffId!=null&&staffId.isNotEmpty)'staffId':staffId};
+    final r=await http.get(Uri.parse('$baseUrl/api/availability').replace(queryParameters:query));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Waqtiyada bannaan lama soo qaadi karin');
+    return (b['busyTimes'] as List? ?? const []).map((x)=>x.toString()).toSet();
+  }
   static Future<void> addOwnerStaff(String token,Map<String,dynamic> staff) async {
     final r=await http.post(Uri.parse('$baseUrl/api/owner/staff'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(staff));
     final b=jsonDecode(r.body) as Map<String,dynamic>;
@@ -1714,9 +1722,12 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
   final phone = TextEditingController();
   final notes = TextEditingController();
   DateTime? selectedDate;
-  TimeOfDay? selectedTime;
+  String? selectedTime;
+  Set<String> busyTimes = <String>{};
   bool loading = true;
   bool saving = false;
+  bool availabilityLoading = false;
+  String? availabilityError;
 
   @override
   void initState() {
@@ -1739,6 +1750,27 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
     super.dispose();
   }
 
+  String _dateKey(DateTime d) => d.year.toString().padLeft(4, '0') + '-' +
+      d.month.toString().padLeft(2, '0') + '-' + d.day.toString().padLeft(2, '0');
+
+  Future<void> _loadAvailability() async {
+    if (widget.merchantId == null || widget.merchantId!.isEmpty || selectedDate == null) return;
+    setState(() {
+      availabilityLoading = true;
+      availabilityError = null;
+      selectedTime = null;
+    });
+    try {
+      final busy = await SalonApi.availableSalonTimes(
+        widget.merchantId!, _dateKey(selectedDate!), staffId: widget.staffId,
+      );
+      if (mounted) setState(() => busyTimes = busy);
+    } catch (e) {
+      if (mounted) setState(() => availabilityError = e.toString());
+    }
+    if (mounted) setState(() => availabilityLoading = false);
+  }
+
   Future<void> _chooseDate() async {
     final now = DateTime.now();
     final value = await showDatePicker(
@@ -1747,16 +1779,21 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 2),
     );
-    if (value != null) setState(() => selectedDate = value);
+    if (value != null && mounted) {
+      setState(() {
+        selectedDate = value;
+        selectedTime = null;
+        busyTimes = <String>{};
+      });
+      await _loadAvailability();
+    }
   }
 
-  Future<void> _chooseTime() async {
-    final value = await showTimePicker(
-      context: context,
-      initialTime: selectedTime ?? TimeOfDay.now(),
-    );
-    if (value != null) setState(() => selectedTime = value);
-  }
+  List<String> get _timeSlots => List<String>.generate(24, (i) {
+    final total = 8 * 60 + i * 30;
+    return (total ~/ 60).toString().padLeft(2, '0') + ':' +
+        (total % 60).toString().padLeft(2, '0');
+  });
 
   Future<void> _submit() async {
     if (name.text.trim().isEmpty || phone.text.trim().isEmpty ||
@@ -1766,33 +1803,45 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       );
       return;
     }
+    if (widget.merchantId == null || widget.merchantId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Salon-kan lama aqoonsan karo. Fadlan dib uga dooro liiska meheradaha.')),
+      );
+      return;
+    }
     setState(() => saving = true);
     final prefs = await SharedPreferences.getInstance();
+    late final Map<String,dynamic> bookingResult;
+    final dateText = _dateKey(selectedDate!);
     try {
-      await SalonApi.createBooking(
+      bookingResult = await SalonApi.createBooking(
         category: 'SALON',
         merchantId: widget.merchantId,
         customerName: name.text.trim(),
         customerPhone: phone.text.trim(),
         customerWhatsApp: prefs.getString('customer_whatsapp') ?? phone.text.trim(),
-        details: {'salon': widget.salonName, 'service': widget.serviceName,
+        details: {
+          'salon': widget.salonName,
+          'service': widget.serviceName,
           if(widget.staffId!=null)'staffId':widget.staffId,
           if(widget.staffName!=null)'staffName':widget.staffName,
-          'date': selectedDate!.toIso8601String().split('T').first,
-          'time': selectedTime!.format(context), 'notes': notes.text.trim()},
+          'date': dateText,
+          'time': selectedTime,
+          'appointmentDate': dateText,
+          'appointmentTime': selectedTime,
+          'notes': notes.text.trim(),
+        },
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => saving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diristu way fashilantay: $e')));
+      await _loadAvailability();
       return;
     }
     final records = prefs.getStringList('salon_booking_requests') ?? <String>[];
-    final dateText = selectedDate!.year.toString() + '-' +
-      selectedDate!.month.toString().padLeft(2, '0') + '-' +
-      selectedDate!.day.toString().padLeft(2, '0');
-    final booking = <String, dynamic>{
-      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+    records.add(jsonEncode(<String, dynamic>{
+      'id': (bookingResult['id'] ?? '').toString(),
       'salon': widget.salonName,
       'service': widget.serviceName,
       if(widget.staffId!=null)'staffId':widget.staffId,
@@ -1800,12 +1849,11 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       'customerName': name.text.trim(),
       'customerPhone': phone.text.trim(),
       'date': dateText,
-      'time': selectedTime!.format(context),
+      'time': selectedTime,
       'notes': notes.text.trim(),
-      'status': 'Sugaya xaqiijinta',
+      'status': (bookingResult['status'] ?? 'Sugaya jawaab').toString(),
       'createdAt': DateTime.now().toIso8601String(),
-    };
-    records.add(jsonEncode(booking));
+    }));
     await prefs.setStringList('salon_booking_requests', records);
     if (!mounted) return;
     setState(() => saving = false);
@@ -1813,16 +1861,17 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Codsiga waa la kaydiyey'),
-        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName + (widget.staffName==null?'':' — '+widget.staffName!) + ' waa la diray. Sug xaqiijinta meheradda.'),
+        title: const Text('Codsiga waa la diray'),
+        content: Text('Ballantaada ' + widget.serviceName + ' ee ' + widget.salonName +
+            (widget.staffName == null ? '' : ' — ' + widget.staffName!) +
+            ' waa la diray. Sug jawaabta meheradda.'),
         actions: [
           FilledButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              showBookingContactOptions(context, widget.whatsappNumber,
-                'BALLAN SALON\nSalon: ' + widget.salonName + '\nAdeeg: ' + widget.serviceName + (widget.staffName==null?'':'\nShaqaalaha: '+widget.staffName!) + '\nMagac: ' + name.text.trim() + '\nTelefoon: ' + phone.text.trim() + '\nTaariikh: ' + dateText + '\nWaqti: ' + selectedTime!.format(context) + '\nFaahfaahin: ' + notes.text.trim());
+              Navigator.pop(context);
             },
-            child: const Text('WHATSAPP / CALL NOW'),
+            child: const Text('HAGAAG'),
           ),
         ],
       ),
@@ -1864,18 +1913,48 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
               label: Text(selectedDate == null ? 'Dooro taariikhda ballanta' :
                 selectedDate!.day.toString() + '/' + selectedDate!.month.toString() + '/' + selectedDate!.year.toString()),
             ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _chooseTime,
-              icon: const Icon(Icons.access_time),
-              label: Text(selectedTime == null ? 'Dooro waqtiga ballanta' : selectedTime!.format(context)),
-            ),
+            const SizedBox(height: 12),
+            if (selectedDate != null) ...[
+              const Text('DOORO WAQTIGA BANNaan', style: TextStyle(fontWeight: FontWeight.bold, color: green)),
+              const SizedBox(height: 8),
+              if (availabilityLoading)
+                const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: green)))
+              else if (availabilityError != null)
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Waqtiyada lama soo qaadi karin: ' + availabilityError!, style: const TextStyle(color: Colors.red)),
+                  TextButton.icon(onPressed: _loadAvailability, icon: const Icon(Icons.refresh), label: const Text('DIB U HUBI')),
+                ])
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _timeSlots.map((slot) {
+                    final busy = busyTimes.contains(slot);
+                    final selected = selectedTime == slot;
+                    return SizedBox(
+                      width: (MediaQuery.of(context).size.width - 68) / 4,
+                      child: OutlinedButton(
+                        onPressed: busy ? null : () => setState(() => selectedTime = slot),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: selected ? green : (busy ? Colors.black12 : Colors.white),
+                          foregroundColor: selected ? Colors.white : (busy ? Colors.black38 : green),
+                          side: BorderSide(color: selected ? green : Colors.black26),
+                          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
+                        ),
+                        child: Text(slot, style: const TextStyle(fontSize: 12)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              if (!availabilityLoading && availabilityError == null)
+                const Padding(padding: EdgeInsets.only(top: 7), child: Text('Waqtiyada cawlka ah waa la qabsaday. Waqtiyada kale waa bannaan yihiin.', style: TextStyle(fontSize: 11, color: Colors.black54))),
+            ],
             const SizedBox(height: 12),
             TextField(controller: notes, maxLines: 3,
               decoration: const InputDecoration(labelText: 'Faahfaahin dheeraad ah (ikhtiyaari)', border: OutlineInputBorder())),
             const SizedBox(height: 20),
             SizedBox(height: 50, child: FilledButton(
-              onPressed: saving ? null : _submit,
+              onPressed: saving || availabilityLoading || availabilityError != null ? null : _submit,
               style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
               child: saving ? const CircularProgressIndicator(color: Colors.white) : const Text('BALLAN QABSO'),
             )),
@@ -1883,7 +1962,6 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
         ),
   );
 }
-
 
 
 class MerchantLoginPage extends StatefulWidget {
