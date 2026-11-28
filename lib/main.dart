@@ -656,29 +656,32 @@ class _HomePageState extends State<HomePage> {
       seenAdminBookingIds.addAll(rows.map((x)=>(x['id']??'').toString()).where((x)=>x.isNotEmpty));
       if(fresh.isEmpty||adminOrderAlertShowing)return;
       adminOrderAlertShowing=true;
-      final first=fresh.first;
-      Map<String,dynamic> details={};
-      try{details=jsonDecode((first['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
-      final customer=(first['customer_name']??'Macmiil').toString();
-      final category=(first['category']??'DALAB').toString();
-      final merchant=(first['merchant_name']??'Meherad').toString();
-      final service=(details['service']??details['itemName']??details['productName']??details['hallName']??'Dalab cusub').toString();
-      final when=(details['appointmentDate']??details['eventDate']??details['deliveryDate']??'').toString();
       await showDialog<void>(context:context,barrierDismissible:false,builder:(dialogContext)=>Dialog(
         insetPadding:const EdgeInsets.symmetric(horizontal:22,vertical:24),
         child:Padding(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[
           const Icon(Icons.notifications_active,color:green,size:54),
           const SizedBox(height:12),
-          const Text('DALAB CUSUB!',textAlign:TextAlign.center,style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:green)),
+          const Text('DALABYO CUSUB!',textAlign:TextAlign.center,style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:green)),
           const SizedBox(height:12),
-          Text(fresh.length==1?'Waxaa soo galay dalab cusub.':'Waxaa soo galay ${fresh.length} dalab cusub.',textAlign:TextAlign.center,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w700)),
+          Text(fresh.length==1?'Hal dalab cusub ayaa soo galay.':'Waxaa soo galay ${fresh.length} dalab cusub.',textAlign:TextAlign.center,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w700)),
           const Divider(height:24),
-          _orderAlertLine('Macmiil',customer),
-          _orderAlertLine('Qaybta',category),
-          _orderAlertLine('Meheradda',merchant),
-          _orderAlertLine('Adeegga',service),
-          if(when.isNotEmpty)_orderAlertLine('Taariikhda',when),
-          const SizedBox(height:18),
+          ...fresh.map((booking){
+            Map<String,dynamic> details={};
+            try{details=jsonDecode((booking['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+            final customer=(booking['customer_name']??'Macmiil').toString();
+            final category=(booking['category']??'DALAB').toString();
+            final merchant=(booking['merchant_name']??'Meherad').toString();
+            final service=(details['service']??details['itemName']??details['productName']??details['hallName']??'Dalab cusub').toString();
+            final when=(details['appointmentDate']??details['eventDate']??details['deliveryDate']??details['startDate']??'').toString();
+            return Container(margin:const EdgeInsets.only(bottom:9),padding:const EdgeInsets.all(10),decoration:BoxDecoration(color:cream,borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              _orderAlertLine('Qaybta',category),
+              _orderAlertLine('Macmiil',customer),
+              _orderAlertLine('Meherad',merchant),
+              _orderAlertLine('Dalab',service),
+              if(when.isNotEmpty)_orderAlertLine('Taariikhda',when),
+            ]));
+          }),
+          const SizedBox(height:10),
           SizedBox(width:double.infinity,child:FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:14)),onPressed:()=>Navigator.pop(dialogContext),icon:const Icon(Icons.receipt_long),label:const Text('WAA LA ARKAY — EEG DALABYADA'))),
         ])),
       ));
@@ -898,18 +901,24 @@ class _HomePageState extends State<HomePage> {
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Admin kuma jiro. Fadlan dib uga gal Admin-ka.')));
       return;
     }
-    String chosenCategory='SALON';
-    final category=await showDialog<String>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
-      title:const Text('QAYBTA MEHERADDA'),
-      content:DropdownButtonFormField<String>(value:chosenCategory,items:const [
-        DropdownMenuItem(value:'SALON',child:Text('SALON')),
-        DropdownMenuItem(value:'CAKES',child:Text('CAKES')),
-        DropdownMenuItem(value:'DECORATION',child:Text('DECORATION')),
-        DropdownMenuItem(value:'KIRAYSO',child:Text('KIRAYSO')),
-      ],onChanged:(v)=>refresh(()=>chosenCategory=v??chosenCategory)),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,chosenCategory),child:const Text('SII WAD'))]
+    const availableCategories=<String>['SALON','CAKES','DECORATION','KIRAYSO'];
+    final selectedCategories=<String>{'SALON'};
+    final categories=await showDialog<List<String>>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:const Text('QAYBAHA MEHERADDA'),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        const Text('Dooro dhammaan qaybaha ay meheraddu bixiso. HALL AROOS halkan kuma jiro.'),
+        const SizedBox(height:8),
+        ...availableCategories.map((item)=>CheckboxListTile(
+          contentPadding:EdgeInsets.zero,
+          dense:true,
+          value:selectedCategories.contains(item),
+          title:Text(item,style:const TextStyle(fontWeight:FontWeight.w600)),
+          onChanged:(checked)=>refresh(()=>checked==true?selectedCategories.add(item):selectedCategories.remove(item)),
+        )),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:selectedCategories.isEmpty?null:()=>Navigator.pop(ctx,availableCategories.where(selectedCategories.contains).toList()),child:const Text('SII WAD'))]
     )));
-    if(category==null||!mounted)return;
+    if(categories==null||!mounted)return;
     final n=await ask('Diiwaangeli Meherad','Magaca meheradda');
     if(n==null||!mounted)return;
     if(n.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Magaca salon-ka waa waajib.')));return;}
@@ -946,7 +955,7 @@ class _HomePageState extends State<HomePage> {
       if((somtelSlsh??'').trim().isNotEmpty) {'provider':'Somtel','currency':'SLSH','recipientNumber':somtelSlsh!.trim()},
     ];
     try {
-      await SalonApi.createMerchantWithOwner(adminToken!,{'category':category,'name':n.trim(),'location':l,'locationDescription':locationDescription.trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
+      await SalonApi.createMerchantWithOwner(adminToken!,{'category':categories.first,'categories':categories,'name':n.trim(),'location':l,'locationDescription':locationDescription.trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
       await loadSalons();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda iyo akoonkeeda waa la diiwaangeliyey.')));
     } catch(e) {
@@ -2254,33 +2263,36 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
       final fresh=rows.where((x){
         final id=(x['id']??'').toString();
         final status=(x['status']??'Sugaya jawaab').toString();
-        return id.isNotEmpty&&!seenBookingIds.contains(id)&&status=='Sugaya jawaab';
+        return id.isNotEmpty&&!seenBookingIds.contains(id)&&status!='Lama heli karo';
       }).toList();
       seenBookingIds.addAll(rows.map((x)=>(x['id']??'').toString()).where((x)=>x.isNotEmpty));
       if(fresh.isEmpty||orderAlertShowing)return;
       orderAlertShowing=true;
-      final first=fresh.first;
-      Map<String,dynamic> details={};
-      try{details=jsonDecode((first['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
-      final customer=(first['customer_name']??'Macmiil').toString();
-      final category=(first['category']??'DALAB').toString();
-      final service=(details['service']??details['itemName']??details['productName']??'Dalab cusub').toString();
-      final when=(details['appointmentDate']??details['eventDate']??details['deliveryDate']??'').toString();
       await showDialog<void>(context:context,barrierDismissible:false,builder:(dialogContext)=>Dialog(
         insetPadding:const EdgeInsets.symmetric(horizontal:22,vertical:24),
         child:Padding(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[
           const Icon(Icons.notifications_active,color:green,size:54),
           const SizedBox(height:12),
-          const Text('DALAB CUSUB!',textAlign:TextAlign.center,style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:green)),
+          const Text('DALABYO CUSUB!',textAlign:TextAlign.center,style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:green)),
           const SizedBox(height:12),
-          Text(fresh.length==1?'Macmiil ayaa dalab cusub kuu soo diray.':'Waxaa kuu yimid ${fresh.length} dalab cusub.',textAlign:TextAlign.center,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w700)),
+          Text(fresh.length==1?'Hal dalab cusub ayaa kuu yimid.':'Waxaa kuu yimid ${fresh.length} dalab cusub.',textAlign:TextAlign.center,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w700)),
           const Divider(height:24),
-          _orderAlertLine('Macmiil',customer),
-          _orderAlertLine('Qaybta',category),
-          _orderAlertLine('Adeegga',service),
-          if(when.isNotEmpty)_orderAlertLine('Taariikhda',when),
-          const SizedBox(height:18),
-          SizedBox(width:double.infinity,child:FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:14)),onPressed:(){Navigator.pop(dialogContext);Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token)));},icon:const Icon(Icons.receipt_long),label:const Text('EEG DALABKA'))),
+          ...fresh.map((booking){
+            Map<String,dynamic> details={};
+            try{details=jsonDecode((booking['details_json']??'{}').toString()) as Map<String,dynamic>;}catch(_){}
+            final customer=(booking['customer_name']??'Macmiil').toString();
+            final category=(booking['category']??'DALAB').toString();
+            final service=(details['service']??details['itemName']??details['productName']??details['hallName']??'Dalab cusub').toString();
+            final when=(details['appointmentDate']??details['eventDate']??details['deliveryDate']??details['startDate']??'').toString();
+            return Container(margin:const EdgeInsets.only(bottom:9),padding:const EdgeInsets.all(10),decoration:BoxDecoration(color:cream,borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              _orderAlertLine('Qaybta',category),
+              _orderAlertLine('Macmiil',customer),
+              _orderAlertLine('Dalab',service),
+              if(when.isNotEmpty)_orderAlertLine('Taariikhda',when),
+            ]));
+          }),
+          const SizedBox(height:10),
+          SizedBox(width:double.infinity,child:FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:green,foregroundColor:Colors.white,padding:const EdgeInsets.symmetric(vertical:14)),onPressed:(){Navigator.pop(dialogContext);Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerBookingsPage(token:widget.token)));},icon:const Icon(Icons.receipt_long),label:const Text('EEG DALABYADA'))),
         ])),
       ));
       orderAlertShowing=false;
