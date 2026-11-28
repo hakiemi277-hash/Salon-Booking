@@ -835,6 +835,9 @@ class _HomePageState extends State<HomePage> {
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,chosenMerchantCity),child:const Text('Dooro'))]
     )));
     if(l==null||!mounted)return;
+    final locationDescription=await ask('Tilmaanta meheradda','Tusaale: Xaafadda Jigjiga Yar, agagaarka suuqa');
+    if(locationDescription==null||!mounted)return;
+    if(locationDescription.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Tilmaanta meheraddu waa waajib.')));return;}
     final w=await ask('WhatsApp-ka Salon-ka','Tusaale: 25263xxxxxxx');
     if(!mounted)return;
     final username=await ask('Akoonka meheradda','Username-ka uu ku geli doono');
@@ -858,7 +861,7 @@ class _HomePageState extends State<HomePage> {
       if((somtelSlsh??'').trim().isNotEmpty) {'provider':'Somtel','currency':'SLSH','recipientNumber':somtelSlsh!.trim()},
     ];
     try {
-      await SalonApi.createMerchantWithOwner(adminToken!,{'category':category,'name':n.trim(),'location':l,'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
+      await SalonApi.createMerchantWithOwner(adminToken!,{'category':category,'name':n.trim(),'location':l,'locationDescription':locationDescription.trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
       await loadSalons();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda iyo akoonkeeda waa la diiwaangeliyey.')));
     } catch(e) {
