@@ -320,6 +320,19 @@ class SalonApi {
     return (b['staff'] as List).cast<Map<String,dynamic>>();
   }
 
+  static Future<Map<String,dynamic>> salonAvailability(String merchantId,String date,{String? staffId}) async {
+    final query=<String,String>{'merchantId':merchantId,'date':date,if(staffId!=null&&staffId.isNotEmpty)'staffId':staffId};
+    final r=await http.get(Uri.parse('$baseUrl/api/availability').replace(queryParameters:query));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Jadwalka lama soo qaadi karin');
+    return b;
+  }
+  static Future<Map<String,dynamic>> saveOwnerSchedule(String token,Map<String,dynamic> schedule) async {
+    final r=await http.put(Uri.parse('$baseUrl/api/owner/schedule'),headers:{'Content-Type':'application/json','Authorization':'Bearer $token'},body:jsonEncode(schedule));
+    final b=jsonDecode(r.body) as Map<String,dynamic>;
+    if(r.statusCode!=200||b['ok']!=true) throw Exception(b['error']??'Jadwalka lama kaydin');
+    return b;
+  }
   static Future<Set<String>> availableSalonTimes(String merchantId,String date,{String? staffId}) async {
     final query=<String,String>{'merchantId':merchantId,'date':date,if(staffId!=null&&staffId.isNotEmpty)'staffId':staffId};
     final r=await http.get(Uri.parse('$baseUrl/api/availability').replace(queryParameters:query));
@@ -1546,6 +1559,7 @@ class _CakePageState extends State<CakePage> {
       initialDate: deliveryDate ?? now,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 2),
+      selectableDayPredicate: (day) => workingDays.contains(day.weekday % 7),
     );
     if (value != null) setState(() => deliveryDate = value);
   }
@@ -1728,6 +1742,9 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
   bool saving = false;
   bool availabilityLoading = false;
   String? availabilityError;
+  Set<int> workingDays = <int>{1,2,3,4,5,6};
+  String openTime = '08:00';
+  String closeTime = '19:30';
 
   @override
   void initState() {
@@ -1761,10 +1778,16 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
       selectedTime = null;
     });
     try {
-      final busy = await SalonApi.availableSalonTimes(
+      final result = await SalonApi.salonAvailability(
         widget.merchantId!, _dateKey(selectedDate!), staffId: widget.staffId,
       );
-      if (mounted) setState(() => busyTimes = busy);
+      if (mounted) setState(() {
+        busyTimes = (result['busyTimes'] as List? ?? const []).map((x)=>x.toString()).toSet();
+        workingDays = (result['workingDays'] as List? ?? const [1,2,3,4,5,6]).map((x)=>int.tryParse(x.toString())??1).toSet();
+        openTime = (result['openTime']??'08:00').toString();
+        closeTime = (result['closeTime']??'19:30').toString();
+        if(result['isWorkingDay']!=true) availabilityError='Maalintan salon-ku ama shaqaaluhu ma shaqeeyo.';
+      });
     } catch (e) {
       if (mounted) setState(() => availabilityError = e.toString());
     }
@@ -1789,11 +1812,15 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
     }
   }
 
-  List<String> get _timeSlots => List<String>.generate(24, (i) {
-    final total = 8 * 60 + i * 30;
-    return (total ~/ 60).toString().padLeft(2, '0') + ':' +
-        (total % 60).toString().padLeft(2, '0');
-  });
+  List<String> get _timeSlots {
+    int minutes(String value) { final p=value.split(':'); return (int.tryParse(p[0])??8)*60+(int.tryParse(p[1])??0); }
+    final start=minutes(openTime), end=minutes(closeTime);
+    if(end<=start)return <String>[];
+    return List<String>.generate(((end-start)/30).ceil(),(i){
+      final total=start+i*30;
+      return (total~/60).toString().padLeft(2,'0')+':'+(total%60).toString().padLeft(2,'0');
+    }).where((slot)=>minutes(slot)+30<=end).toList();
+  }
 
   Future<void> _submit() async {
     if (name.text.trim().isEmpty || phone.text.trim().isEmpty ||
@@ -1915,7 +1942,7 @@ class _SalonBookingPageState extends State<SalonBookingPage> {
             ),
             const SizedBox(height: 12),
             if (selectedDate != null) ...[
-              const Text('DOORO WAQTIGA BANNaan', style: TextStyle(fontWeight: FontWeight.bold, color: green)),
+              Text('DOORO WAQTIGA BANNaan ($openTime – $closeTime)', style: const TextStyle(fontWeight: FontWeight.bold, color: green)),
               const SizedBox(height: 8),
               if (availabilityLoading)
                 const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: green)))
@@ -2000,6 +2027,40 @@ class OwnerStaffPage extends StatefulWidget {
   State<OwnerStaffPage> createState()=>_OwnerStaffPageState();
 }
 class _OwnerStaffPageState extends State<OwnerStaffPage> {
+  Future<void> editSchedule({Map<String,dynamic>? person}) async {
+    final isStaff=person!=null;
+    final source=isStaff?person:data;
+    final rawDays=source['working_days_json']??source['workingDays'];
+    List<int> days;
+    try{days=(rawDays is String?jsonDecode(rawDays):rawDays as List).map((x)=>int.parse(x.toString())).toList();}
+    catch(_){days=(data['workingDays'] as List? ?? [1,2,3,4,5,6]).map((x)=>int.parse(x.toString())).toList();}
+    final selected=<int>{...days};
+    TimeOfDay parseTime(String v){final p=v.split(':');return TimeOfDay(hour:int.tryParse(p[0])??8,minute:int.tryParse(p[1])??0);}
+    String open=(source['open_time']??source['openTime']??data['openTime']??'08:00').toString();
+    String close=(source['close_time']??source['closeTime']??data['closeTime']??'19:30').toString();
+    TimeOfDay opening=parseTime(open),closing=parseTime(close);
+    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:Text(isStaff?'JADWALKA SHAQAALAHA':'JADWALKA MEHERADDA'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('MAALMAHA SHAQADA',style:TextStyle(fontWeight:FontWeight.bold,color:green)),
+        ...['Axad','Isniin','Talaado','Arbaco','Khamiis','Jimce','Sabti'].asMap().entries.map((e)=>CheckboxListTile(contentPadding:EdgeInsets.zero,dense:true,value:selected.contains(e.key),title:Text(e.value),onChanged:(v)=>refresh(()=>v==true?selected.add(e.key):selected.remove(e.key)))),
+        const Divider(),
+        ListTile(contentPadding:EdgeInsets.zero,title:const Text('Waqtiga furitaanka'),subtitle:Text(opening.format(ctx)),trailing:const Icon(Icons.access_time),onTap:()async{final v=await showTimePicker(context:ctx,initialTime:opening);if(v!=null)refresh(()=>opening=v);}),
+        ListTile(contentPadding:EdgeInsets.zero,title:const Text('Waqtiga xiritaanka'),subtitle:Text(closing.format(ctx)),trailing:const Icon(Icons.access_time),onTap:()async{final v=await showTimePicker(context:ctx,initialTime:closing);if(v!=null)refresh(()=>closing=v);}),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('KA NOQO')),FilledButton(onPressed:selected.isEmpty||opening.hour*60+opening.minute>=closing.hour*60+closing.minute?null:()=>Navigator.pop(ctx,true),child:const Text('KAYDI JADWALKA'))]
+    )));
+    if(ok!=true||!mounted)return;
+    String fmt(TimeOfDay t)=>t.hour.toString().padLeft(2,'0')+':'+t.minute.toString().padLeft(2,'0');
+    final payload=<String,dynamic>{'workingDays':selected.toList()..sort(),'openTime':fmt(opening),'closeTime':fmt(closing)};
+    try{
+      if(isStaff) await SalonApi.updateOwnerStaff(widget.token,person['id'].toString(),payload);
+      else await SalonApi.saveOwnerSchedule(widget.token,payload);
+      await load();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Jadwalka waa la kaydiyey.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }
+
   Map<String,dynamic> data={};
   bool loading=true;
   String? error;
@@ -2104,6 +2165,12 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
       IconButton(onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>OwnerRentalPage(token:widget.token))),icon:const Icon(Icons.checkroom),tooltip:'Alaabta kirada'),IconButton(onPressed:load,icon:const Icon(Icons.refresh))]),
       floatingActionButton:FloatingActionButton.extended(onPressed:activeStaff.length>=limit?null:()=>editStaff(),backgroundColor:green,foregroundColor:Colors.white,icon:const Icon(Icons.person_add),label:const Text('KU DAR GABAR')),
       body:loading?const Center(child:CircularProgressIndicator(color:green)):error!=null?Center(child:Text(error!)):ListView(padding:const EdgeInsets.all(14),children:[
+        Card(child:ListTile(
+          leading:const CircleAvatar(backgroundColor:cream,child:Icon(Icons.schedule,color:green)),
+          title:const Text('JADWALKA MEHERADDA',style:TextStyle(fontWeight:FontWeight.bold)),
+          subtitle:Text('Maalmaha: '+((data['workingDays'] as List? ?? [1,2,3,4,5,6]).map((x)=>['Axad','Isniin','Talaado','Arbaco','Khamiis','Jimce','Sabti'][int.parse(x.toString())]).join(', '))+'\\n'+(data['openTime']??'08:00').toString()+' – '+(data['closeTime']??'19:30').toString()),
+          trailing:const Icon(Icons.edit,color:green),onTap:()=>editSchedule(),
+        )),
         Text('SHAQAALAHA: '+activeStaff.length.toString()+' / '+limit.toString(),style:const TextStyle(color:green,fontWeight:FontWeight.bold,fontSize:17)),
         const SizedBox(height:5),
         Text('SAWIRRADA MEHERADDA: $photoCount / $photoLimit',style:const TextStyle(color:green,fontWeight:FontWeight.w600)),
@@ -2113,7 +2180,7 @@ class _OwnerStaffPageState extends State<OwnerStaffPage> {
           leading:ClipRRect(borderRadius:BorderRadius.circular(8),child:salonImage((p['photoUrl']??'').toString(),fit:BoxFit.cover,fallback:const Icon(Icons.person,color:green))),
           title:Text((p['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.bold)),
           subtitle:Text((p['title']??'').toString()+'\n'+((jsonDecode((p['services_json']??'[]').toString()) as List).join(', '))),
-          isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')editStaff(p);if(v=='delete')removeStaff(p);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('Wax ka beddel')),PopupMenuItem(value:'delete',child:Text('Ka saar'))])
+          isThreeLine:true,trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')editStaff(p);if(v=='schedule')editSchedule(person:p);if(v=='delete')removeStaff(p);},itemBuilder:(_)=>const [PopupMenuItem(value:'edit',child:Text('Wax ka beddel')),PopupMenuItem(value:'schedule',child:Text('Jadwalka shaqada')),PopupMenuItem(value:'delete',child:Text('Ka saar'))])
         )))
       ]));
   }
