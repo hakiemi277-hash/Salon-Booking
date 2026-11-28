@@ -1139,7 +1139,9 @@ class _HomePageState extends State<HomePage> {
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(
-        builder: (_) => ProviderDirectoryPage(title: title, isCake: isCake, city:selectedCity))),
+        builder: (_) => isCake
+          ? MerchantSearchPage(city:selectedCity, initialCategory:'CAKES')
+          : ProviderDirectoryPage(title: title, isCake: isCake, city:selectedCity))),
       child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
         Container(width: 58, height: 58, decoration: BoxDecoration(color: cream, borderRadius: BorderRadius.circular(14)),
           child: Icon(icon, color: green, size: 32)),
@@ -1160,14 +1162,15 @@ class _HomePageState extends State<HomePage> {
 }
 
 class MerchantSearchPage extends StatefulWidget {
-  const MerchantSearchPage({super.key,required this.city});
+  const MerchantSearchPage({super.key,required this.city,this.initialCategory='DHAMMAAN'});
   final String city;
+  final String initialCategory;
   @override
   State<MerchantSearchPage> createState()=>_MerchantSearchPageState();
 }
 class _MerchantSearchPageState extends State<MerchantSearchPage>{
   final search=TextEditingController();
-  String category='DHAMMAAN';
+  late String category=widget.initialCategory;
   bool loading=true;
   bool favoritesOnly=false;
   String? error;
