@@ -52,3 +52,45 @@ jobs:
           name: salon-booking-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate iOS project files
+        run: flutter create . --platforms=ios --org com.salonbooking
+      - name: Configure iOS app display name and photo access
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("ios/Runner/Info.plist")
+          s = p.read_text()
+          s = s.replace("</dict>", """  <key>CFBundleDisplayName</key>
+          <string>SALON BOOKING</string>
+          <key>NSPhotoLibraryUsageDescription</key>
+          <string>SALON BOOKING waxay u baahan tahay sawirrada si aad u doorato sawirrada alaabta iyo adeegyada.</string>
+          </dict>""", 1)
+          p.write_text(s)
+          PY
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Generate Android and iOS launcher icons
+        run: dart run flutter_launcher_icons
+      - name: Build iOS release without signing
+        run: flutter build ios --release --no-codesign
+      - name: Package unsigned iOS app
+        run: |
+          cd build/ios/iphoneos
+          ditto -c -k --sequesterRsrc --keepParent Runner.app "$GITHUB_WORKSPACE/salon-booking-ios-unsigned.zip"
+      - name: Upload unsigned iOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: salon-booking-ios-unsigned
+          path: salon-booking-ios-unsigned.zip
+          if-no-files-found: error
