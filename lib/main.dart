@@ -580,8 +580,8 @@ class _HomePageState extends State<HomePage> {
   bool admin = false;
   String customerFirstName = '';
   String selectedCity = 'Hargeysa';
-  static const List<String> activeCities = ['Hargeysa', 'Burco'];
-  static const List<String> upcomingCities = ['Boorama', 'Berbera', 'Ceerigaabo', 'Gebiley'];
+  static const List<String> activeCities = ['Hargeysa', 'Burco', 'Boorama', 'Berbera', 'Ceerigaabo', 'Gebiley'];
+  static const List<String> upcomingCities = [];
 
   String? adminToken;
   List<Map<String,dynamic>> featured=[];
@@ -636,7 +636,7 @@ class _HomePageState extends State<HomePage> {
     if(mounted)setState(()=>staffLoadingIds.remove(merchantId));
   }
   Future<void> chooseCity() async {
-    final value=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Dooro magaaladaada'),content:Column(mainAxisSize:MainAxisSize.min,children:[const Text('Magaalooyinka shaqaynaya'),...activeCities.map((city)=>ListTile(leading:const Icon(Icons.location_city,color:green),title:Text(city),onTap:()=>Navigator.pop(ctx,city))),const Divider(),const Text('Weli lama diiwaangelin'),...upcomingCities.map((city)=>ListTile(enabled:false,leading:const Icon(Icons.lock_outline),title:Text(city),subtitle:const Text('Dib ayaa loogu dari doonaa')))])));
+    final value=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Dooro magaaladaada'),content:Column(mainAxisSize:MainAxisSize.min,children:activeCities.map((city)=>ListTile(leading:const Icon(Icons.location_city,color:green),title:Text(city),onTap:()=>Navigator.pop(ctx,city))).toList())));
     if(value==null)return;final p=await SharedPreferences.getInstance();await p.setString('selected_city',value);if(mounted)setState(()=>selectedCity=value);
   }
   final Map<String,String> categoryImageUrls={};
@@ -828,8 +828,13 @@ class _HomePageState extends State<HomePage> {
     final n=await ask('Diiwaangeli Meherad','Magaca meheradda');
     if(n==null||!mounted)return;
     if(n.trim().isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Magaca salon-ka waa waajib.')));return;}
-    final l=await ask('Goobta Salon-ka','Magaalada / xaafadda');
-    if(!mounted)return;
+    String chosenMerchantCity='Hargeysa';
+    final l=await showDialog<String>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,refresh)=>AlertDialog(
+      title:const Text('Dooro magaalada meheradda'),
+      content:DropdownButtonFormField<String>(value:chosenMerchantCity,isExpanded:true,decoration:const InputDecoration(labelText:'Magaalada'),items:activeCities.map((city)=>DropdownMenuItem(value:city,child:Text(city))).toList(),onChanged:(v)=>refresh(()=>chosenMerchantCity=v??chosenMerchantCity)),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Ka noqo')),FilledButton(onPressed:()=>Navigator.pop(ctx,chosenMerchantCity),child:const Text('Dooro'))]
+    )));
+    if(l==null||!mounted)return;
     final w=await ask('WhatsApp-ka Salon-ka','Tusaale: 25263xxxxxxx');
     if(!mounted)return;
     final username=await ask('Akoonka meheradda','Username-ka uu ku geli doono');
@@ -853,7 +858,7 @@ class _HomePageState extends State<HomePage> {
       if((somtelSlsh??'').trim().isNotEmpty) {'provider':'Somtel','currency':'SLSH','recipientNumber':somtelSlsh!.trim()},
     ];
     try {
-      await SalonApi.createMerchantWithOwner(adminToken!,{'category':category,'name':n.trim(),'location':(l??'Hargeysa').trim(),'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
+      await SalonApi.createMerchantWithOwner(adminToken!,{'category':category,'name':n.trim(),'location':l,'ownerWhatsApp':(w??'').trim(),'username':username.trim(),'password':password,'paymentConfigs':paymentConfigs});
       await loadSalons();
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Meheradda iyo akoonkeeda waa la diiwaangeliyey.')));
     } catch(e) {
